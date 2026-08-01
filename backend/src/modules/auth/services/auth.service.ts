@@ -29,20 +29,32 @@ export interface IAuthResult {
 }
 
 export class AuthService {
-  private userRepo: UserRepository;
-  private profileRepo: UserProfileRepository;
-  private mailService: EmailService;
+  private customUserRepo?: UserRepository;
+  private customProfileRepo?: UserProfileRepository;
+  private customMailService?: EmailService;
   private googleClient: OAuth2Client;
 
   constructor(
-    userRepo = userRepository,
-    profileRepo = userProfileRepository,
-    mailService = emailService
+    userRepo?: UserRepository,
+    profileRepo?: UserProfileRepository,
+    mailService?: EmailService
   ) {
-    this.userRepo = userRepo;
-    this.profileRepo = profileRepo;
-    this.mailService = mailService;
+    this.customUserRepo = userRepo;
+    this.customProfileRepo = profileRepo;
+    this.customMailService = mailService;
     this.googleClient = new OAuth2Client(envConfig.googleClientId);
+  }
+
+  private get userRepo(): UserRepository {
+    return this.customUserRepo || userRepository;
+  }
+
+  private get profileRepo(): UserProfileRepository {
+    return this.customProfileRepo || userProfileRepository;
+  }
+
+  private get mailService(): EmailService {
+    return this.customMailService || emailService;
   }
 
   public generateAccessToken(payload: ITokenPayload): string {
@@ -152,12 +164,10 @@ export class AuthService {
 
       const isMatch = await bcrypt.compare(refreshTokenInput, user.refreshToken);
       if (!isMatch) {
-        // Token reuse / compromise detected: invalidate stored refresh token
         await this.userRepo.updateById(user._id.toString(), { refreshToken: '' });
         throw new AppError('Invalid refresh token. Security compromise alert.', 401, 'AUTH_INVALID_REFRESH_TOKEN');
       }
 
-      // True Refresh Token Rotation: Generate brand new access and refresh tokens
       const tokenPayload: ITokenPayload = {
         userId: user._id.toString(),
         email: user.email,
@@ -167,7 +177,6 @@ export class AuthService {
       const newAccessToken = this.generateAccessToken(tokenPayload);
       const newRefreshToken = this.generateRefreshToken(tokenPayload);
 
-      // Invalidate old token by replacing stored hash with new token hash
       const newHashedRefreshToken = await bcrypt.hash(newRefreshToken, 10);
       await this.userRepo.updateById(user._id.toString(), { refreshToken: newHashedRefreshToken });
 
@@ -217,7 +226,6 @@ export class AuthService {
       resetPasswordExpires,
     });
 
-    // Log reset URL via email service stub
     await this.mailService.sendPasswordResetEmail(user.email, resetToken);
 
     return { resetToken };
@@ -272,7 +280,6 @@ export class AuthService {
         throw new AppError('Google token verification failed', 400, 'AUTH_GOOGLE_VERIFICATION_FAILED');
       }
     } else {
-      // In development/testing when googleClientId is unset, simulate parsed payload securely
       sub = crypto.createHash('sha256').update(googleToken).digest('hex').substring(0, 16);
       email = `google_user_${sub}@gmail.com`;
       name = 'Google User';

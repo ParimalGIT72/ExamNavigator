@@ -1,7 +1,11 @@
 import request from 'supertest';
+import mongoose from 'mongoose';
 import app from '../src/app';
-import { UserModel } from '../src/modules/user/models/user.model';
-import { UserProfileModel } from '../src/modules/user/models/user-profile.model';
+import { userRepository } from '../src/modules/user/repositories/user.repository';
+import { userProfileRepository } from '../src/modules/user/repositories/user-profile.repository';
+
+// Disable Mongoose buffering during unit tests without live DB
+mongoose.set('bufferCommands', false);
 
 describe('Authentication Module Integration Tests', () => {
   const testUser = {
@@ -17,17 +21,9 @@ describe('Authentication Module Integration Tests', () => {
   beforeAll(async () => {
     const bcrypt = require('bcrypt');
     mockHashedPassword = await bcrypt.hash(testUser.password, 10);
+  });
 
-    jest.spyOn(UserModel.prototype, 'save').mockImplementation(function (this: any) {
-      this._id = this._id || createdUserId;
-      return Promise.resolve(this);
-    });
-
-    jest.spyOn(UserProfileModel.prototype, 'save').mockImplementation(function (this: any) {
-      this._id = this._id || '660f1b2c3d4e5f6a7b8c9d0f';
-      return Promise.resolve(this);
-    });
-
+  beforeEach(() => {
     const mockUserDoc: any = {
       _id: createdUserId,
       fullName: testUser.fullName,
@@ -41,73 +37,61 @@ describe('Authentication Module Integration Tests', () => {
       resetPasswordExpires: new Date(Date.now() + 3600000),
       createdAt: new Date(),
       updatedAt: new Date(),
-      save: jest.fn().mockResolvedValue(true),
     };
 
-    // Mock Mongoose Model queries directly
-    jest.spyOn(UserModel, 'findOne').mockImplementation((query: any) => {
-      const execMock = () => {
-        if (query.email === testUser.email.toLowerCase() || query.email === testUser.email) {
-          return Promise.resolve(mockUserDoc);
-        }
-        if (query.verificationToken === 'valid_verify_token') {
-          return Promise.resolve(mockUserDoc);
-        }
-        if (query.resetPasswordToken === 'valid_reset_token') {
-          return Promise.resolve(mockUserDoc);
-        }
-        return Promise.resolve(null);
+    jest.spyOn(userRepository, 'findByEmail').mockImplementation(async (email: string) => {
+      if (email.toLowerCase() === testUser.email.toLowerCase()) {
+        return mockUserDoc;
+      }
+      return null;
+    });
+
+    jest.spyOn(userRepository, 'findById').mockImplementation(async (id: string) => {
+      if (id === createdUserId) return mockUserDoc;
+      return null;
+    });
+
+    jest.spyOn(userRepository, 'findByVerificationToken').mockImplementation(async (token: string) => {
+      if (token === 'valid_verify_token') return mockUserDoc;
+      return null;
+    });
+
+    jest.spyOn(userRepository, 'findByResetToken').mockImplementation(async (token: string) => {
+      if (token === 'valid_reset_token') return mockUserDoc;
+      return null;
+    });
+
+    jest.spyOn(userRepository, 'create').mockImplementation(async (data: any) => {
+      return {
+        ...mockUserDoc,
+        ...data,
+        _id: createdUserId,
       };
-
-      return {
-        select: () => ({
-          exec: execMock,
-        }),
-        exec: execMock,
-      } as any;
     });
 
-    jest.spyOn(UserModel, 'findById').mockImplementation((id: any) => {
-      const execMock = () => {
-        if (id.toString() === createdUserId) {
-          return Promise.resolve(mockUserDoc);
-        }
-        return Promise.resolve(null);
+    jest.spyOn(userRepository, 'updateById').mockImplementation(async (id: string, update: any) => {
+      return {
+        ...mockUserDoc,
+        ...update,
+        _id: id,
       };
+    });
 
+    jest.spyOn(userProfileRepository, 'create').mockImplementation(async (data: any) => {
       return {
-        select: () => ({
-          exec: execMock,
-        }),
-        exec: execMock,
+        _id: '660f1b2c3d4e5f6a7b8c9d0f',
+        userId: data.userId,
+        targetExam: data.targetExam || 'JEE',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       } as any;
     });
 
-    jest.spyOn(UserModel, 'findByIdAndUpdate').mockImplementation((id: any, updateData: any) => {
+    jest.spyOn(userProfileRepository, 'findByUserId').mockImplementation(async (userId: string) => {
       return {
-        exec: () => Promise.resolve({ ...mockUserDoc, ...updateData, _id: id }),
-      } as any;
-    });
-
-    jest.spyOn(UserProfileModel, 'findOne').mockImplementation(() => {
-      return {
-        exec: () =>
-          Promise.resolve({
-            _id: '660f1b2c3d4e5f6a7b8c9d0f',
-            userId: createdUserId,
-            targetExam: 'JEE',
-          }),
-      } as any;
-    });
-
-    jest.spyOn(UserProfileModel, 'findOneAndUpdate').mockImplementation((_query: any, updateData: any) => {
-      return {
-        exec: () =>
-          Promise.resolve({
-            _id: '660f1b2c3d4e5f6a7b8c9d0f',
-            userId: createdUserId,
-            ...updateData,
-          }),
+        _id: '660f1b2c3d4e5f6a7b8c9d0f',
+        userId,
+        targetExam: 'JEE',
       } as any;
     });
   });
@@ -117,14 +101,7 @@ describe('Authentication Module Integration Tests', () => {
   });
 
   it('POST /api/v1/auth/register - should register a new student', async () => {
-    // For registration of a new user, findByEmail must return null
-    jest.spyOn(UserModel, 'findOne').mockImplementationOnce((_query: any) => {
-      const execMock = () => Promise.resolve(null);
-      return {
-        select: () => ({ exec: execMock }),
-        exec: execMock,
-      } as any;
-    });
+    jest.spyOn(userRepository, 'findByEmail').mockResolvedValue(null);
 
     const res = await request(app).post('/api/v1/auth/register').send({
       fullName: 'New Student',
