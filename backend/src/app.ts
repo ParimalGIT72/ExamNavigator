@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { envConfig } from './config/env.config';
 import { systemRoutes } from './modules/system/routes/system.routes';
+import { authRoutes } from './modules/auth/routes/auth.routes';
+import { userRoutes } from './modules/user/routes/user.routes';
 import { errorHandler } from './middleware/error.middleware';
 
 const app: Application = express();
@@ -37,8 +39,10 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Mount Modular Monolith System Module Routes
+// Mount Modular Monolith Routes
 app.use('/api/v1', systemRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
 
 // Centralized error handler
 app.use(errorHandler);

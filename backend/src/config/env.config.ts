@@ -25,4 +25,5 @@ export const envConfig = {
   refreshTokenSecret: refreshTokenSecret || 'dev_refresh_secret_change_me_in_prod',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
+  googleClientId: process.env.GOOGLE_CLIENT_ID || '',
 };
