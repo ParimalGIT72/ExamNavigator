@@ -3,7 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { envConfig } from './config/env.config';
-import { healthRoutes } from './routes/health.routes';
+import { systemRoutes } from './modules/system/routes/system.routes';
 import { errorHandler } from './middleware/error.middleware';
 
 const app: Application = express();
@@ -37,8 +37,8 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 
-// Mount Health Check & Base Route
-app.use('/api/v1', healthRoutes);
+// Mount Modular Monolith System Module Routes
+app.use('/api/v1', systemRoutes);
 
 // Centralized error handler
 app.use(errorHandler);

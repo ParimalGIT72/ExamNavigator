@@ -1,11 +1,11 @@
 import { Response } from 'express';
 
-export interface IApiResponse<T = any> {
+export interface IApiResponse<T = unknown> {
   success: boolean;
   message: string;
   data?: T;
   errorCode?: string;
-  errors?: any[];
+  errors?: unknown[];
 }
 
 export class ApiResponse {
@@ -23,7 +23,7 @@ export class ApiResponse {
     message: string,
     statusCode: number = 500,
     errorCode: string = 'INTERNAL_ERROR',
-    errors?: any[]
+    errors?: unknown[]
   ): Response {
     const payload: IApiResponse = {
       success: false,

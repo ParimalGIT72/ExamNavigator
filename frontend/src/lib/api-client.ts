@@ -27,7 +27,7 @@ export class ApiClient {
     return response.json();
   }
 
-  public static async post<T>(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
+  public static async post<T>(endpoint: string, body?: unknown, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders(headers),
@@ -36,7 +36,7 @@ export class ApiClient {
     return response.json();
   }
 
-  public static async put<T>(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
+  public static async put<T>(endpoint: string, body?: unknown, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: this.getHeaders(headers),
@@ -45,7 +45,7 @@ export class ApiClient {
     return response.json();
   }
 
-  public static async patch<T>(endpoint: string, body?: any, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
+  public static async patch<T>(endpoint: string, body?: unknown, headers: Record<string, string> = {}): Promise<IApiResponse<T>> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PATCH',
       headers: this.getHeaders(headers),
