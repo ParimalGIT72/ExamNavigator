@@ -36,3 +36,5 @@ export interface IAuthResponseData {
   refreshToken?: string;
   user: IUser;
 }
+
+export * from './academic.types';
