@@ -7,6 +7,7 @@ import { systemRoutes } from './modules/system/routes/system.routes';
 import { authRoutes } from './modules/auth/routes/auth.routes';
 import { userRoutes } from './modules/user/routes/user.routes';
 import { academicRoutes } from './modules/academic/routes/academic.routes';
+import { assessmentRoutes } from './modules/assessment/routes/assessment.routes';
 import { errorHandler } from './middleware/error.middleware';
 
 const app: Application = express();
@@ -45,6 +46,7 @@ app.use('/api/v1', systemRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1', academicRoutes);
+app.use('/api/v1', assessmentRoutes);
 
 // Centralized error handler
 app.use(errorHandler);
