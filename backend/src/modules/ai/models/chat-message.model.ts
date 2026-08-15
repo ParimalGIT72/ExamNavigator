@@ -15,6 +15,12 @@ export interface IChatMessageDocument extends Document {
   citations?: ICitation[];
   tokenCount?: number;
   feedback?: 'ThumbsUp' | 'ThumbsDown' | 'None';
+  /** True when this message has been consumed into a conversationSummary */
+  isIncludedInSummary: boolean;
+  /** True when RAG context was injected to generate this assistant message */
+  ragContextUsed: boolean;
+  /** AI response latency in milliseconds — maps to AIResponseTime in DATABASE_SCHEMA.md §28 */
+  latencyMs?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +40,9 @@ const ChatMessageSchema = new Schema<IChatMessageDocument>(
     citations: [CitationSchema],
     tokenCount: { type: Number, default: 0 },
     feedback: { type: String, enum: ['ThumbsUp', 'ThumbsDown', 'None'], default: 'None' },
+    isIncludedInSummary: { type: Boolean, default: false, index: true },
+    ragContextUsed: { type: Boolean, default: false },
+    latencyMs: { type: Number, default: 0 },
   },
   {
     timestamps: true,
@@ -41,5 +50,6 @@ const ChatMessageSchema = new Schema<IChatMessageDocument>(
 );
 
 ChatMessageSchema.index({ sessionId: 1, createdAt: 1 });
+ChatMessageSchema.index({ sessionId: 1, isIncludedInSummary: 1, createdAt: 1 });
 
 export const ChatMessageModel = mongoose.model<IChatMessageDocument>('ChatMessage', ChatMessageSchema, 'chatMessages');

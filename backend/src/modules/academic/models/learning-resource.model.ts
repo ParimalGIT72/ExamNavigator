@@ -13,6 +13,9 @@ export interface ILearningResourceDocument extends Document {
   fileSize?: number;
   mimeType?: string;
   metadata?: Record<string, unknown>;
+  processingStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  chunkCount?: number;
+  processingError?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +73,19 @@ const LearningResourceSchema = new Schema<ILearningResourceDocument>(
       type: Map,
       of: Schema.Types.Mixed,
       default: {},
+    },
+    processingStatus: {
+      type: String,
+      enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'],
+      default: 'COMPLETED',
+    },
+    chunkCount: {
+      type: Number,
+      default: 0,
+    },
+    processingError: {
+      type: String,
+      default: '',
     },
   },
   {

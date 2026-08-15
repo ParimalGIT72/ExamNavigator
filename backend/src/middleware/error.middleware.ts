@@ -4,12 +4,20 @@ import { ApiResponse } from '../utils/api-response';
 import { logger } from '../utils/logger';
 import { envConfig } from '../config/env.config';
 
+import { ZodError } from 'zod';
+
 export const errorHandler = (
   err: Error | AppError,
   _req: Request,
   res: Response,
   _next: NextFunction
 ): void => {
+  if (err instanceof ZodError) {
+    const errors = err.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
+    ApiResponse.error(res, 'Validation failed', 400, 'VALIDATION_ERROR', errors);
+    return;
+  }
+
   if (err instanceof AppError) {
     logger.warn(`AppError: [${err.errorCode}] ${err.message}`, { statusCode: err.statusCode, errors: err.errors });
     ApiResponse.error(res, err.message, err.statusCode, err.errorCode, err.errors);

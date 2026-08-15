@@ -10,6 +10,12 @@ export interface IChatSessionDocument extends Document {
   status: 'Active' | 'Archived';
   messageCount: number;
   lastMessageAt: Date;
+  /** AI-generated summary of older (summarized) messages — required by DATABASE_SCHEMA.md §27 */
+  conversationSummary?: string;
+  /** Timestamp of the last successful summarization run */
+  summaryUpdatedAt?: Date;
+  /** Display name of the active topic being discussed */
+  currentTopic?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -24,6 +30,9 @@ const ChatSessionSchema = new Schema<IChatSessionDocument>(
     status: { type: String, enum: ['Active', 'Archived'], default: 'Active' },
     messageCount: { type: Number, default: 0 },
     lastMessageAt: { type: Date, default: Date.now, index: true },
+    conversationSummary: { type: String, default: '' },
+    summaryUpdatedAt: { type: Date },
+    currentTopic: { type: String, default: '' },
   },
   {
     timestamps: true,
