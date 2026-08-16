@@ -72,5 +72,26 @@ describe('AI Module Integration Tests (Iteration 6A - AI Gateway & Direct Chat)'
       expect(res.body.data).toHaveProperty('modelUsed');
       expect(res.body.data).toHaveProperty('latencyMs');
     });
+
+    it('should return 429 Too Many Requests when express aiRateLimiter threshold is exceeded', async () => {
+      const rateLimitUserToken = jwt.sign(
+        { userId: '507f1f77bcf86cd799439999', email: 'ratelimit@examnavigator.com', role: 'Student' },
+        envConfig.jwtSecret
+      );
+
+      let lastRes: any;
+      // Send 16 requests (max limit is 15 per min)
+      for (let i = 0; i < 16; i++) {
+        lastRes = await request(app)
+          .post('/api/v1/ai/chat/direct')
+          .set('Authorization', `Bearer ${rateLimitUserToken}`)
+          .send({ prompt: `Test rate limit query ${i}` });
+      }
+
+      expect(lastRes.status).toBe(429);
+      expect(lastRes.body).toHaveProperty('success', false);
+      expect(lastRes.body.errorCode).toBe('TOO_MANY_REQUESTS');
+      expect(lastRes.body.message).toContain('AI request rate limit exceeded');
+    });
   });
 });

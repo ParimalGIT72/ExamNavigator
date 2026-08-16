@@ -1,39 +1,29 @@
 import { STUDENT_NAV_ITEMS, ADMIN_NAV_ITEMS } from '../../src/config/navigation';
 import { useToastStore } from '../../src/store/useToastStore';
 
-function assert(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(`Assertion failed: ${message}`);
-  }
-}
-
-export function runUIComponentsUnitTests() {
-  // 1. Navigation config assertions
-  assert(Array.isArray(STUDENT_NAV_ITEMS), 'STUDENT_NAV_ITEMS must be an array');
-  assert(STUDENT_NAV_ITEMS.length >= 2, 'STUDENT_NAV_ITEMS must contain at least 2 navigation items');
-  assert(Array.isArray(ADMIN_NAV_ITEMS), 'ADMIN_NAV_ITEMS must be an array');
-  assert(ADMIN_NAV_ITEMS.length >= 5, 'ADMIN_NAV_ITEMS must contain at least 5 navigation items');
-
-  // 2. Toast Store assertions
-  useToastStore.getState().addToast({
-    type: 'success',
-    title: 'Test Notification',
-    message: 'Toast added successfully',
+describe('UI Infrastructure & Navigation Unit Tests', () => {
+  it('should have valid navigation configurations', () => {
+    expect(Array.isArray(STUDENT_NAV_ITEMS)).toBe(true);
+    expect(STUDENT_NAV_ITEMS.length).toBeGreaterThanOrEqual(2);
+    expect(Array.isArray(ADMIN_NAV_ITEMS)).toBe(true);
+    expect(ADMIN_NAV_ITEMS.length).toBeGreaterThanOrEqual(5);
   });
 
-  let state = useToastStore.getState();
-  assert(state.toasts.length === 1, 'Toast should be added to store');
-  assert(state.toasts[0].message === 'Toast added successfully', 'Toast message must match');
+  it('should add and remove toasts in toast store', () => {
+    useToastStore.getState().addToast({
+      type: 'success',
+      title: 'Test Notification',
+      message: 'Toast added successfully',
+    });
 
-  const toastId = state.toasts[0].id;
-  useToastStore.getState().removeToast(toastId);
+    let state = useToastStore.getState();
+    expect(state.toasts.length).toBe(1);
+    expect(state.toasts[0].message).toBe('Toast added successfully');
 
-  state = useToastStore.getState();
-  assert(state.toasts.length === 0, 'Toast should be removed from store');
+    const toastId = state.toasts[0].id;
+    useToastStore.getState().removeToast(toastId);
 
-  console.log('All UI components & navigation infrastructure unit tests passed successfully.');
-}
-
-if (require.main === module) {
-  runUIComponentsUnitTests();
-}
+    state = useToastStore.getState();
+    expect(state.toasts.length).toBe(0);
+  });
+});

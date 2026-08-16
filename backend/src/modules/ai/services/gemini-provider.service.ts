@@ -2,6 +2,7 @@ export interface IGeminiGenerateOptions {
   systemInstruction?: string;
   temperature?: number;
   maxOutputTokens?: number;
+  signal?: AbortSignal;
 }
 
 export interface IGeminiResponse {
@@ -33,7 +34,7 @@ export class GeminiProviderService {
     // Estimate input tokens (approx 4 chars per token)
     const promptTokens = Math.max(1, Math.ceil(prompt.length / 4));
 
-    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test') {
+    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
       // Return structured educational response for test/dev environment
       const mockResponseText = `[Gemini 2.5 Pro Response]
 
@@ -84,6 +85,7 @@ Sources: Official NCERT & Competitive Exam Study Notes.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: options.signal,
       });
 
       if (!response.ok) {
@@ -110,8 +112,136 @@ Sources: Official NCERT & Competitive Exam Study Notes.`;
         model: this.model,
       };
     } catch (error: any) {
+      if (options.signal?.aborted || error.name === 'AbortError') {
+        const abortErr = new Error('Generation cancelled by user');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
       throw new Error(`GeminiProviderService Error: ${error.message}`);
     }
+  }
+
+  public async generateContentStream(
+    prompt: string,
+    options: IGeminiGenerateOptions = {},
+    onToken: (token: string) => void
+  ): Promise<IGeminiResponse> {
+    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
+      const mockResult = await this.generateContent(prompt, options);
+      const chunks = mockResult.text.split(/(?<=\s)/);
+      for (const chunk of chunks) {
+        if (options.signal?.aborted) {
+          const abortErr = new Error('Generation cancelled by user');
+          abortErr.name = 'AbortError';
+          throw abortErr;
+        }
+        onToken(chunk);
+      }
+      return mockResult;
+    }
+
+    const temperature = options.temperature ?? 0.3;
+    const maxOutputTokens = options.maxOutputTokens ?? 2048;
+
+    const url = `${this.baseUrl}/${this.model}:streamGenerateContent?alt=sse&key=${this.apiKey}`;
+    const payload: any = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature, maxOutputTokens },
+    };
+
+    if (options.systemInstruction) {
+      payload.systemInstruction = { parts: [{ text: options.systemInstruction }] };
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: options.signal,
+      });
+    } catch (error: any) {
+      if (options.signal?.aborted || error.name === 'AbortError') {
+        const abortErr = new Error('Generation cancelled by user');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
+      throw new Error(`GeminiProviderService Stream Error: ${error.message}`);
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini Stream API Error (${response.status}): ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Gemini Stream API Error: Response body is null');
+    }
+
+    const reader = (response.body as any).getReader();
+    const decoder = new TextDecoder('utf-8');
+    let fullText = '';
+    let usageMetadata: any = null;
+    let buffer = '';
+
+    try {
+      while (true) {
+        if (options.signal?.aborted) {
+          try { reader.cancel(); } catch {}
+          const abortErr = new Error('Generation cancelled by user');
+          abortErr.name = 'AbortError';
+          throw abortErr;
+        }
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          const rawData = trimmed.replace(/^data:\s*/, '').trim();
+          if (!rawData || rawData === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(rawData);
+            const tokenChunk = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (tokenChunk) {
+              fullText += tokenChunk;
+              onToken(tokenChunk);
+            }
+            if (parsed.usageMetadata) {
+              usageMetadata = parsed.usageMetadata;
+            }
+          } catch {
+            // Ignore parse errors for split/partial JSON lines
+          }
+        }
+      }
+    } catch (error: any) {
+      if (options.signal?.aborted || error.name === 'AbortError') {
+        const abortErr = new Error('Generation cancelled by user');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
+      throw error;
+    }
+
+    const promptTokens = usageMetadata?.promptTokenCount ?? Math.max(1, Math.ceil(prompt.length / 4));
+    const completionTokens = usageMetadata?.candidatesTokenCount ?? Math.max(1, Math.ceil(fullText.length / 4));
+    const totalTokens = usageMetadata?.totalTokenCount ?? (promptTokens + completionTokens);
+
+    return {
+      text: fullText,
+      promptTokens,
+      completionTokens,
+      totalTokens,
+      model: this.model,
+    };
   }
 }
 

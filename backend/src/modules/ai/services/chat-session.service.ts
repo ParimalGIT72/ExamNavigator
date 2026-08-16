@@ -191,6 +191,163 @@ export class ChatSessionService {
     };
   }
 
+  public async processStreamChatTurn(
+    request: IProcessChatTurnRequest,
+    onToken: (token: string) => void,
+    onCitations?: (citations: ICitationMetadata[]) => void,
+    options?: { signal?: AbortSignal }
+  ): Promise<IProcessChatTurnResponse> {
+    const startTime = Date.now();
+
+    // 0. AI Quota Check
+    const quota = await tokenManagerService.checkQuota(request.userId);
+    if (!quota.allowed) {
+      const quotaReason = quota.reason || 'AI Daily Quota Exceeded';
+      await tokenManagerService.logUsage({
+        userId: request.userId,
+        requestType: 'Chat_Session',
+        promptTokens: 0,
+        completionTokens: 0,
+        modelUsed: 'gemini-2.5-pro',
+        latencyMs: Date.now() - startTime,
+        status: 'Quota_Exceeded',
+        errorMessage: quotaReason,
+      });
+      throw new AppError(quotaReason, 429, 'TOO_MANY_REQUESTS');
+    }
+
+    let session: IChatSessionDocument | null = null;
+
+    // 1. Session Lookup or Creation
+    if (request.sessionId) {
+      session = await chatSessionRepository.findByIdAndUserId(request.sessionId, request.userId, 'Active');
+      if (!session) {
+        throw new AppError('Session not found.', 404, 'NOT_FOUND');
+      }
+    } else {
+      const defaultTitle = request.message.slice(0, 40).trim() || 'New Doubts Session';
+      session = await chatSessionRepository.create({
+        userId: new Types.ObjectId(request.userId),
+        title: defaultTitle,
+        subjectId: request.subjectId && Types.ObjectId.isValid(request.subjectId) ? new Types.ObjectId(request.subjectId) : undefined,
+        chapterId: request.chapterId && Types.ObjectId.isValid(request.chapterId) ? new Types.ObjectId(request.chapterId) : undefined,
+        topicId: request.topicId && Types.ObjectId.isValid(request.topicId) ? new Types.ObjectId(request.topicId) : undefined,
+        status: 'Active',
+        messageCount: 0,
+        lastMessageAt: new Date(),
+      });
+    }
+
+    const sessionIdStr = session._id.toString();
+
+    // 2. Persist User Message
+    await chatMessageRepository.create({
+      sessionId: session._id,
+      sender: 'User',
+      content: request.message,
+      isIncludedInSummary: false,
+      ragContextUsed: false,
+    });
+
+    const updatedCount = (session.messageCount || 0) + 1;
+    await chatSessionRepository.update(sessionIdStr, {
+      messageCount: updatedCount,
+      lastMessageAt: new Date(),
+    });
+
+    // 3. Build Conversation Memory Block & RAG Context
+    const memoryResult = await conversationMemoryService.buildMemoryBlock(sessionIdStr);
+
+    const queryVector = await geminiEmbeddingProviderService.generateEmbedding(request.message);
+    const candidateChunks = await embeddingRepository.findCandidatesByMetadata({
+      subjectId: request.subjectId || session.subjectId?.toString(),
+      chapterId: request.chapterId || session.chapterId?.toString(),
+      topicId: request.topicId || session.topicId?.toString(),
+    });
+
+    const topItems = ragEngineService.rankCandidates(queryVector, candidateChunks, 5, 0.55);
+    const ragContextBlock = ragEngineService.buildContextBlock(topItems);
+
+    const citations: ICitationMetadata[] = topItems.map((item) => {
+      const meta = item.chunk.metadata as any;
+      const title = meta?.get ? meta.get('title') : meta?.title || 'Study Material';
+      const resourceType = meta?.get ? meta.get('resourceType') : meta?.resourceType || 'Resource';
+      return {
+        resourceId: item.chunk.resourceId.toString(),
+        title,
+        resourceType,
+        similarityScore: Math.round(item.score * 1000) / 1000,
+        chunkIndex: item.chunk.chunkIndex,
+      };
+    });
+
+    if (onCitations && citations.length > 0) {
+      onCitations(citations);
+    }
+
+    // 4. Build Final Augmented Prompt
+    let combinedPrompt = '';
+    if (memoryResult.memoryBlock) {
+      combinedPrompt += memoryResult.memoryBlock + '\n';
+    }
+    if (ragContextBlock) {
+      combinedPrompt += ragContextBlock + '\n\n';
+    }
+    combinedPrompt += `${request.message}`;
+
+    // 5. Delegate Streaming Execution to Phase 6A AI Gateway
+    const gatewayResult = await aiGatewayService.processStreamChat(
+      {
+        userId: request.userId,
+        prompt: combinedPrompt,
+        subjectId: request.subjectId || session.subjectId?.toString(),
+        topicId: request.topicId || session.topicId?.toString(),
+      },
+      onToken,
+      { signal: options?.signal }
+    );
+
+    const latencyMs = Date.now() - startTime;
+
+    // 6. Persist Assistant Message & Update Session Metadata
+    const formattedCitations = citations.map((c) => ({
+      resourceId: new Types.ObjectId(c.resourceId),
+      chunkText: c.title,
+      score: c.similarityScore,
+    }));
+
+    await chatMessageRepository.create({
+      sessionId: session._id,
+      sender: 'Assistant',
+      content: gatewayResult.answer,
+      citations: formattedCitations as any,
+      tokenCount: gatewayResult.tokensUsed.completionTokens,
+      latencyMs,
+      ragContextUsed: citations.length > 0,
+      isIncludedInSummary: false,
+    });
+
+    await chatSessionRepository.update(sessionIdStr, {
+      messageCount: updatedCount + 1,
+      lastMessageAt: new Date(),
+    });
+
+    if (memoryResult.shouldSummarize && memoryResult.session) {
+      conversationMemoryService
+        .triggerSummarization(sessionIdStr, memoryResult.session, memoryResult.oldestIncludedDate)
+        .catch(() => {});
+    }
+
+    return {
+      sessionId: sessionIdStr,
+      answer: gatewayResult.answer,
+      citations,
+      tokensUsed: gatewayResult.tokensUsed,
+      modelUsed: gatewayResult.modelUsed,
+      latencyMs,
+    };
+  }
+
   /**
    * Retrieves paginated list of chat sessions owned by the authenticated user.
    */

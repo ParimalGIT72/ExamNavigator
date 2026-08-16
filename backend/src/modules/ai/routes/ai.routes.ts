@@ -8,9 +8,10 @@ import { authenticateJwt } from '../../../middleware/auth.middleware';
 import { requireRole } from '../../../middleware/role.middleware';
 
 // Dedicated per-minute rate limiter for AI subsystem
-const aiRateLimiter = rateLimit({
+export const aiRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 15, // Max 15 requests per minute
+  keyGenerator: (req) => (req as any).user?.userId || req.ip,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -27,7 +28,7 @@ router.use(aiRateLimiter);
 // 1. Protected AI Gateway Direct Query Endpoint (Phase 6A)
 router.post('/chat/direct', authenticateJwt, aiController.directChat.bind(aiController));
 
-// 2. Protected Chat Session Management Endpoints (Phase 6C)
+router.post('/chat/stream', authenticateJwt, chatController.streamChat.bind(chatController));
 router.get('/chat/sessions', authenticateJwt, chatController.getSessions.bind(chatController));
 router.post('/chat', authenticateJwt, chatController.startChat.bind(chatController));
 router.post('/chat/:sessionId', authenticateJwt, chatController.continueChat.bind(chatController));

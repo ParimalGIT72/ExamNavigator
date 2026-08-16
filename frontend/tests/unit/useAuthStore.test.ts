@@ -1,45 +1,39 @@
 import { useAuthStore } from '../../src/store/useAuthStore';
 
-function assert(condition: boolean, message: string) {
-  if (!condition) {
-    throw new Error(`Assertion failed: ${message}`);
-  }
-}
+describe('useAuthStore Unit Tests', () => {
+  beforeEach(() => {
+    useAuthStore.getState().logout();
+  });
 
-export function runAuthStoreUnitTests() {
-  useAuthStore.getState().logout();
+  it('should initialize with empty auth state', () => {
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+  });
 
-  let state = useAuthStore.getState();
-  assert(state.user === null, 'User should be null initially');
-  assert(state.isAuthenticated === false, 'isAuthenticated should be false initially');
+  it('should update state on setAuth, updateUser, and logout', () => {
+    const dummyUser: any = {
+      id: 'usr1',
+      fullName: 'John Doe',
+      email: 'john@example.com',
+      role: 'Student',
+      accountStatus: 'Active',
+      emailVerified: true,
+    };
 
-  const dummyUser: any = {
-    id: 'usr1',
-    fullName: 'John Doe',
-    email: 'john@example.com',
-    role: 'Student',
-    accountStatus: 'Active',
-    emailVerified: true,
-  };
+    useAuthStore.getState().setAuth(dummyUser, 'sample_jwt_token');
+    let state = useAuthStore.getState();
+    expect(state.isAuthenticated).toBe(true);
+    expect(state.user?.fullName).toBe('John Doe');
+    expect(state.token).toBe('sample_jwt_token');
 
-  useAuthStore.getState().setAuth(dummyUser, 'sample_jwt_token');
-  state = useAuthStore.getState();
-  assert(state.isAuthenticated === true, 'isAuthenticated should be true after setAuth');
-  assert(state.user?.fullName === 'John Doe', 'user.fullName should be John Doe');
-  assert(state.token === 'sample_jwt_token', 'token should be set');
+    useAuthStore.getState().updateUser({ fullName: 'John Updated' });
+    state = useAuthStore.getState();
+    expect(state.user?.fullName).toBe('John Updated');
 
-  useAuthStore.getState().updateUser({ fullName: 'John Updated' });
-  state = useAuthStore.getState();
-  assert(state.user?.fullName === 'John Updated', 'user.fullName should be updated');
-
-  useAuthStore.getState().logout();
-  state = useAuthStore.getState();
-  assert(state.user === null, 'user should be null after logout');
-  assert(state.isAuthenticated === false, 'isAuthenticated should be false after logout');
-
-  console.log('All useAuthStore unit tests passed successfully.');
-}
-
-if (require.main === module) {
-  runAuthStoreUnitTests();
-}
+    useAuthStore.getState().logout();
+    state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+  });
+});
