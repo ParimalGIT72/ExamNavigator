@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { FileText, Video, File, Award, Download, ExternalLink } from 'lucide-react';
+import { FileText, Video, File, Award, Download, ExternalLink, RefreshCw } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +12,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
-import { useTopicQuery, useResourcesQuery } from '@/hooks/useAcademic';
+import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import { useTopicQuery, useResourcesQuery, useChapterQuery, useSubjectQuery } from '@/hooks/useAcademic';
 import { ResourceType, IAcademicQueryParams } from '@/types';
 
 export default function TopicDetailPage() {
@@ -27,7 +28,20 @@ export default function TopicDetailPage() {
   });
 
   const { data: topic, isLoading: isTopicLoading } = useTopicQuery(topicId);
-  const { data: resourcesData, isLoading: isResourcesLoading, isError, error } = useResourcesQuery(topicId, queryParams);
+  const { data: resourcesData, isLoading: isResourcesLoading, isError, error, refetch } = useResourcesQuery(topicId, queryParams);
+
+  // Resolve parent Chapter & Subject context
+  const parentChapterId = typeof topic?.chapterId === 'object' ? topic.chapterId._id : topic?.chapterId || '';
+  const parentChapterTitle = typeof topic?.chapterId === 'object' ? topic.chapterId.title : undefined;
+
+  const parentSubjectId = typeof topic?.subjectId === 'object' ? topic.subjectId._id : topic?.subjectId || '';
+  const parentSubjectName = typeof topic?.subjectId === 'object' ? topic.subjectId.name : undefined;
+
+  const { data: parentChapter } = useChapterQuery(parentChapterId);
+  const { data: parentSubject } = useSubjectQuery(parentSubjectId);
+
+  const chapterTitle = parentChapterTitle || parentChapter?.title || 'Chapter';
+  const subjectTitle = parentSubjectName || parentSubject?.name || 'Subject';
 
   const handleSearchChange = (search: string) => {
     setQueryParams((prev) => ({ ...prev, search, page: 1 }));
@@ -62,14 +76,15 @@ export default function TopicDetailPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center space-x-2 text-sm text-slate-500">
-            <Link href="/subjects" className="hover:text-brand-600 font-medium transition-colors">
-              Subjects
-            </Link>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">{topic?.title || 'Topic Details'}</span>
-          </div>
+          {/* Breadcrumb Hierarchy */}
+          <Breadcrumb
+            items={[
+              { label: 'My Subjects', href: '/subjects' },
+              { label: subjectTitle, href: parentSubjectId ? `/subjects/${parentSubjectId}` : undefined },
+              { label: chapterTitle, href: parentChapterId ? `/chapters/${parentChapterId}` : undefined },
+              { label: topic?.title || 'Topic Detail' },
+            ]}
+          />
 
           {/* Topic Header Banner */}
           {isTopicLoading ? (
@@ -100,7 +115,7 @@ export default function TopicDetailPage() {
 
                 {topic.summary && (
                   <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-sm leading-relaxed">
-                    <h3 className="font-semibold text-slate-900 mb-1">Topic Summary</h3>
+                    <h2 className="font-semibold text-slate-900 mb-1 text-xs uppercase tracking-wider">Topic Summary</h2>
                     <p>{topic.summary}</p>
                   </div>
                 )}
@@ -140,9 +155,21 @@ export default function TopicDetailPage() {
             ]}
           />
 
-          {/* Error Banner */}
+          {/* Error Banner with Retry */}
           {isError && (
-            <Alert variant="error" title="Failed to Load Resources" message={error?.message || 'Network error occurred.'} />
+            <div className="space-y-3">
+              <Alert
+                variant="error"
+                title="Failed to Load Resources"
+                message={error?.message || 'Network error occurred while fetching resources.'}
+              />
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+              </button>
+            </div>
           )}
 
           {/* Resources List */}
@@ -158,7 +185,7 @@ export default function TopicDetailPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {resourcesData.items.map((resource) => (
-                  <Card key={resource._id} className="hover:shadow-md transition-all border-slate-200 flex flex-col justify-between">
+                  <Card key={resource._id} className="hover:shadow-md transition-all border-slate-200 flex flex-col justify-between bg-white">
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <div className="flex items-center space-x-2">
@@ -185,7 +212,7 @@ export default function TopicDetailPage() {
                         href={`/resources/${resource._id}`}
                         className="inline-flex items-center text-xs font-semibold text-slate-600 hover:text-brand-600 transition-colors"
                       >
-                        <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Full Resource
+                        <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Details
                       </Link>
 
                       {resource.contentUrl && (
@@ -210,8 +237,8 @@ export default function TopicDetailPage() {
 
           {!isResourcesLoading && resourcesData && resourcesData.items.length === 0 && (
             <EmptyState
-              title="No Learning Resources Found"
-              description="There are currently no learning resources matching your criteria for this topic."
+              title="No Learning Resources Available"
+              description="There are currently no learning resources available for this topic."
             />
           )}
         </div>

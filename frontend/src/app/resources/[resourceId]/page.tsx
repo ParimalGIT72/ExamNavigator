@@ -3,42 +3,75 @@
 import React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { FileText, Download, User, Calendar, ExternalLink } from 'lucide-react';
+import { FileText, Download, User, Calendar, ExternalLink, RefreshCw } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
-import { useResourceQuery } from '@/hooks/useAcademic';
+import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import { useResourceQuery, useTopicQuery, useChapterQuery, useSubjectQuery } from '@/hooks/useAcademic';
 
 export default function ResourceDetailPage() {
   const params = useParams();
   const resourceId = (params.resourceId as string) || '';
 
-  const { data: resource, isLoading, isError, error } = useResourceQuery(resourceId);
+  const { data: resource, isLoading, isError, error, refetch } = useResourceQuery(resourceId);
+
+  // Resolve parent Topic, Chapter, and Subject context for complete breadcrumb chain
+  const parentTopicId = typeof resource?.topicId === 'object' ? resource.topicId._id : resource?.topicId || '';
+  const parentTopicTitle = typeof resource?.topicId === 'object' ? resource.topicId.title : undefined;
+
+  const parentChapterId = typeof resource?.chapterId === 'object' ? resource.chapterId._id : resource?.chapterId || '';
+  const parentChapterTitle = typeof resource?.chapterId === 'object' ? resource.chapterId.title : undefined;
+
+  const parentSubjectId = typeof resource?.subjectId === 'object' ? resource.subjectId._id : resource?.subjectId || '';
+  const parentSubjectName = typeof resource?.subjectId === 'object' ? resource.subjectId.name : undefined;
+
+  const { data: parentTopic } = useTopicQuery(parentTopicId);
+  const { data: parentChapter } = useChapterQuery(parentChapterId);
+  const { data: parentSubject } = useSubjectQuery(parentSubjectId);
+
+  const topicTitle = parentTopicTitle || parentTopic?.title || 'Topic';
+  const chapterTitle = parentChapterTitle || parentChapter?.title || 'Chapter';
+  const subjectTitle = parentSubjectName || parentSubject?.name || 'Subject';
 
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto space-y-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center space-x-2 text-sm text-slate-500">
-            <Link href="/subjects" className="hover:text-brand-600 font-medium transition-colors">
-              Academic Resources
-            </Link>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">{resource?.title || 'Resource Details'}</span>
-          </div>
+          {/* Complete Breadcrumb Hierarchy */}
+          <Breadcrumb
+            items={[
+              { label: 'My Subjects', href: '/subjects' },
+              { label: subjectTitle, href: parentSubjectId ? `/subjects/${parentSubjectId}` : undefined },
+              { label: chapterTitle, href: parentChapterId ? `/chapters/${parentChapterId}` : undefined },
+              { label: topicTitle, href: parentTopicId ? `/topics/${parentTopicId}` : undefined },
+              { label: resource?.title || 'Resource Detail' },
+            ]}
+          />
 
-          {/* Error Banner */}
+          {/* Error Banner with Retry */}
           {isError && (
-            <Alert variant="error" title="Failed to Load Resource" message={error?.message || 'Network error occurred.'} />
+            <div className="space-y-3">
+              <Alert
+                variant="error"
+                title="Failed to Load Resource"
+                message={error?.message || 'Network error occurred while loading resource details.'}
+              />
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+              </button>
+            </div>
           )}
 
           {/* Loading Skeleton */}
           {isLoading && (
-            <Card className="p-8 space-y-6">
+            <Card className="p-8 space-y-6 bg-white">
               <Skeleton className="h-8 w-3/4" />
               <Skeleton className="h-4 w-1/4" />
               <Skeleton className="h-40 w-full" />
@@ -47,7 +80,7 @@ export default function ResourceDetailPage() {
 
           {/* Resource Content View */}
           {!isLoading && resource && (
-            <Card className="p-6 sm:p-10 space-y-8 shadow-md">
+            <Card className="p-6 sm:p-10 space-y-8 shadow-md bg-white">
               {/* Header Info */}
               <div className="border-b border-slate-200 pb-6 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -72,7 +105,7 @@ export default function ResourceDetailPage() {
               {/* Text Content */}
               {resource.textContent ? (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Resource Content / Notes</h3>
+                  <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Resource Content / Notes</h2>
                   <div className="p-6 bg-slate-900 text-slate-100 rounded-xl font-mono text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto">
                     {resource.textContent}
                   </div>
@@ -87,7 +120,7 @@ export default function ResourceDetailPage() {
               {/* Download / External Link Actions */}
               {resource.contentUrl && (
                 <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 truncate max-w-full">
                     External URL: <span className="font-mono text-slate-700">{resource.contentUrl}</span>
                   </div>
 

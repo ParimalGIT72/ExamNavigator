@@ -1,6 +1,6 @@
 export type ExamType = 'JEE' | 'NEET' | 'MHT-CET' | 'GATE' | 'CAT' | 'University' | 'Other' | string;
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
-export type ResourceType = 'PDF' | 'Video' | 'Notes' | 'FormulaSheet' | 'Other';
+export type ResourceType = 'PDF' | 'Video' | 'Text' | 'Link' | 'FormulaSheet' | 'Notes' | 'Other' | string;
 
 export interface IExam {
   _id: string;

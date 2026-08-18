@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Layers, FileText, ChevronRight } from 'lucide-react';
+import { FileText, ChevronRight, RefreshCw } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -12,7 +12,8 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
-import { useChapterQuery, useTopicsQuery } from '@/hooks/useAcademic';
+import { Breadcrumb } from '@/components/ui/Breadcrumb';
+import { useChapterQuery, useTopicsQuery, useSubjectQuery } from '@/hooks/useAcademic';
 import { DifficultyLevel, IAcademicQueryParams } from '@/types';
 
 export default function ChapterDetailPage() {
@@ -27,7 +28,14 @@ export default function ChapterDetailPage() {
   });
 
   const { data: chapter, isLoading: isChapterLoading } = useChapterQuery(chapterId);
-  const { data: topicsData, isLoading: isTopicsLoading, isError, error } = useTopicsQuery(chapterId, queryParams);
+  const { data: topicsData, isLoading: isTopicsLoading, isError, error, refetch } = useTopicsQuery(chapterId, queryParams);
+
+  // Parent subject context resolution
+  const parentSubjectId = typeof chapter?.subjectId === 'object' ? chapter.subjectId._id : chapter?.subjectId || '';
+  const parentSubjectName = typeof chapter?.subjectId === 'object' ? chapter.subjectId.name : undefined;
+
+  const { data: parentSubject } = useSubjectQuery(parentSubjectId);
+  const subjectTitle = parentSubjectName || parentSubject?.name || 'Subject';
 
   const handleSearchChange = (search: string) => {
     setQueryParams((prev) => ({ ...prev, search, page: 1 }));
@@ -62,14 +70,14 @@ export default function ChapterDetailPage() {
     <ProtectedRoute>
       <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto space-y-8">
-          {/* Breadcrumb */}
-          <div className="flex items-center space-x-2 text-sm text-slate-500">
-            <Link href="/subjects" className="hover:text-brand-600 font-medium transition-colors">
-              Subjects
-            </Link>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">{chapter?.title || 'Chapter Details'}</span>
-          </div>
+          {/* Breadcrumb Hierarchy */}
+          <Breadcrumb
+            items={[
+              { label: 'My Subjects', href: '/subjects' },
+              { label: subjectTitle, href: parentSubjectId ? `/subjects/${parentSubjectId}` : undefined },
+              { label: chapter?.title || 'Chapter Detail' },
+            ]}
+          />
 
           {/* Chapter Header Banner */}
           {isChapterLoading ? (
@@ -127,9 +135,21 @@ export default function ChapterDetailPage() {
             ]}
           />
 
-          {/* Error Banner */}
+          {/* Error Banner with Retry */}
           {isError && (
-            <Alert variant="error" title="Failed to Load Topics" message={error?.message || 'Network error occurred.'} />
+            <div className="space-y-3">
+              <Alert
+                variant="error"
+                title="Failed to Load Topics"
+                message={error?.message || 'Network error occurred while loading topics.'}
+              />
+              <button
+                onClick={() => refetch()}
+                className="inline-flex items-center px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-lg transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+              </button>
+            </div>
           )}
 
           {/* Topics Grid */}
@@ -145,10 +165,10 @@ export default function ChapterDetailPage() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {topicsData.items.map((topic) => (
-                  <Card key={topic._id} className="hover:shadow-md transition-all border-slate-200 flex flex-col justify-between">
+                  <Card key={topic._id} className="hover:shadow-md transition-all border-slate-200 flex flex-col justify-between bg-white">
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                        <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md">
                           Topic {topic.topicNumber}
                         </span>
                         {getDifficultyBadge(topic.difficultyLevel)}
@@ -194,7 +214,7 @@ export default function ChapterDetailPage() {
 
           {!isTopicsLoading && topicsData && topicsData.items.length === 0 && (
             <EmptyState
-              title="No Topics Found"
+              title="No Topics Available"
               description="There are currently no topics matching your filter under this chapter."
             />
           )}

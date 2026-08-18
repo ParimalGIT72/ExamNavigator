@@ -11,13 +11,13 @@ const resourceSchema = z.object({
   chapterId: z.string().min(1, 'Chapter is required'),
   topicId: z.string().min(1, 'Topic is required'),
   title: z.string().min(2, 'Title must be at least 2 characters'),
-  resourceType: z.enum(['PDF', 'Video', 'Notes', 'FormulaSheet', 'Other']),
+  resourceType: z.string().min(1, 'Resource type is required'),
   contentUrl: z.string().url('Must be a valid URL').or(z.literal('')).optional(),
   textContent: z.string().optional(),
   author: z.string().optional(),
 });
 
-type ResourceFormData = z.infer<typeof resourceSchema>;
+export type ResourceFormData = z.infer<typeof resourceSchema>;
 
 export interface ResourceFormProps {
   initialData?: ILearningResource | null;
@@ -55,7 +55,7 @@ export const ResourceForm: React.FC<ResourceFormProps> = ({
       chapterId: getObjId(initialData?.chapterId),
       topicId: getObjId(initialData?.topicId, defaultTopicId),
       title: initialData?.title || '',
-      resourceType: initialData?.resourceType || 'Notes',
+      resourceType: initialData?.resourceType || 'PDF',
       contentUrl: initialData?.contentUrl || '',
       textContent: initialData?.textContent || '',
       author: initialData?.author || '',
@@ -151,7 +151,8 @@ export const ResourceForm: React.FC<ResourceFormProps> = ({
           >
             <option value="PDF">PDF Document</option>
             <option value="Video">Video Tutorial</option>
-            <option value="Notes">Text Notes</option>
+            <option value="Text">Text Notes</option>
+            <option value="Link">External Link</option>
             <option value="FormulaSheet">Formula Sheet</option>
             <option value="Other">Other</option>
           </select>
@@ -173,12 +174,12 @@ export const ResourceForm: React.FC<ResourceFormProps> = ({
       />
 
       <div className="flex flex-col space-y-1.5">
-        <label className="text-sm font-medium text-slate-700">Text Content / Study Notes (Markdown Supported)</label>
+        <label className="text-sm font-medium text-slate-700">Text Content / Study Notes</label>
         <textarea
-          rows={5}
+          rows={4}
           aria-label="Text Content"
-          placeholder="Paste formula derivations, key bullet points, or summary notes..."
-          className="px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono"
+          placeholder="Enter text notes, summary or inline derivations..."
+          className="px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 font-mono text-xs"
           {...register('textContent')}
         />
       </div>
