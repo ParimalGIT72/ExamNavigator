@@ -33,7 +33,7 @@ router.get('/chat/sessions', authenticateJwt, chatController.getSessions.bind(ch
 router.post('/chat', authenticateJwt, chatController.startChat.bind(chatController));
 router.post('/chat/:sessionId', authenticateJwt, chatController.continueChat.bind(chatController));
 router.get('/chat/:sessionId/messages', authenticateJwt, chatController.getSessionMessages.bind(chatController));
-router.delete('/chat/:sessionId', authenticateJwt, chatController.archiveSession.bind(chatController));
+router.delete('/chat/:sessionId', authenticateJwt, chatController.deleteSession.bind(chatController));
 
 // 3. Protected RAG Retrieval & Ingestion Endpoints (Phase 6B)
 router.post('/rag/query', authenticateJwt, ragController.query.bind(ragController));

@@ -168,19 +168,26 @@ export class ChatController {
   }
 
   /**
-   * Archives (soft-deletes) a chat session.
+   * Permanently deletes a chat session and all associated messages.
    */
-  public async archiveSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async deleteSession(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user.userId;
       const sessionId = req.params.sessionId;
 
-      await chatSessionService.archiveSession(sessionId, userId);
+      await chatSessionService.deleteSession(sessionId, userId);
 
-      ApiResponse.success(res, 'Chat session archived successfully', { sessionId });
+      ApiResponse.success(res, 'Chat session deleted successfully', { sessionId });
     } catch (error) {
       next(error);
     }
+  }
+
+  /**
+   * Archives (deletes) a chat session.
+   */
+  public async archiveSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+    return this.deleteSession(req, res, next);
   }
 }
 

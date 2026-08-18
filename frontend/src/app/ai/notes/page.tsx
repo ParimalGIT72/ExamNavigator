@@ -66,7 +66,7 @@ export default function AiNotesPage() {
             AI Study Notes
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Synthesized structured study guides grounded in Phase 6B RAG Engine chunks.
+            Synthesized structured study guides grounded in official syllabus material.
           </p>
         </div>
 

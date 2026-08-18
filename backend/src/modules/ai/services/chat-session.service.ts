@@ -390,15 +390,31 @@ export class ChatSessionService {
   }
 
   /**
-   * Archives (soft-deletes) a session owned by the authenticated user.
+   * Permanently deletes a chat session and all associated messages owned by the authenticated user.
+   * Enforces strict 404 NOT_FOUND for unauthorized or non-existent session access.
+   */
+  public async deleteSession(sessionId: string, userId: string): Promise<boolean> {
+    const session = await chatSessionRepository.findByIdAndUserId(sessionId, userId);
+    if (!session) {
+      throw new AppError('Session not found.', 404, 'NOT_FOUND');
+    }
+    await chatMessageRepository.deleteBySessionId(sessionId);
+    await chatSessionRepository.deleteSession(sessionId, userId);
+    return true;
+  }
+
+  /**
+   * Archives/Deletes a session owned by the authenticated user.
    * Enforces strict 404 NOT_FOUND for unauthorized session access.
    */
   public async archiveSession(sessionId: string, userId: string): Promise<IChatSessionDocument> {
-    const archived = await chatSessionRepository.archiveSession(sessionId, userId);
-    if (!archived) {
+    const session = await chatSessionRepository.findByIdAndUserId(sessionId, userId);
+    if (!session) {
       throw new AppError('Session not found.', 404, 'NOT_FOUND');
     }
-    return archived;
+    await chatMessageRepository.deleteBySessionId(sessionId);
+    await chatSessionRepository.deleteSession(sessionId, userId);
+    return session;
   }
 }
 

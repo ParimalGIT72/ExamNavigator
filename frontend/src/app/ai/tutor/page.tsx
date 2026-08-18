@@ -79,6 +79,9 @@ export default function AiTutorPage() {
   };
 
   const handleArchiveSession = async (sessionId: string) => {
+    if (isStreaming && currentSessionId === sessionId) {
+      stopGeneration();
+    }
     const res = await ApiClient.delete(`/ai/chat/${sessionId}`);
     if (res.success) {
       archiveSessionInStore(sessionId);
@@ -112,7 +115,7 @@ export default function AiTutorPage() {
 
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <BookOpen className="w-4 h-4 text-indigo-400" />
-            <span>Phase 6B RAG Grounded</span>
+            <span>Syllabus Grounded</span>
           </div>
         </header>
 
@@ -125,7 +128,7 @@ export default function AiTutorPage() {
               </div>
               <h3 className="text-lg font-bold text-slate-100 mb-2">How can I help your studies today?</h3>
               <p className="text-sm text-slate-400 max-w-md">
-                Ask any competitive exam doubt (JEE, NEET, GATE). Answers are grounded in official syllabus notes via our Phase 6 RAG Engine.
+                Ask any competitive exam doubt (JEE, NEET, GATE). Answers are grounded in official syllabus notes.
               </p>
             </div>
           ) : (

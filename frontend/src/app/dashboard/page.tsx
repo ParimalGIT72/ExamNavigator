@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, Bell, Award, Layers } from 'lucide-react';
+import { BookOpen, ChevronRight, Bell, Award, Layers, Sparkles, Bot } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { StudentLayout } from '@/components/layout/StudentLayout';
 import { Card } from '@/components/ui/Card';
@@ -17,7 +17,7 @@ export default function DashboardPage() {
       <StudentLayout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
           {/* Welcome Header */}
-          <div className="bg-gradient-to-r from-brand-600 to-indigo-700 rounded-2xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="bg-gradient-to-r from-brand-600 via-indigo-700 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center space-x-2 text-brand-200 text-xs font-bold uppercase tracking-wider mb-1">
                 <span>Student Learning Dashboard</span>
@@ -30,16 +30,47 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <Link
-              href="/subjects"
-              className="inline-flex items-center justify-center px-5 py-3 bg-white text-brand-700 hover:bg-brand-50 rounded-xl font-bold text-sm shadow transition-all flex-shrink-0"
-            >
-              <BookOpen className="h-4 w-4 mr-2" /> Browse Subjects
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/ai/tutor"
+                className="inline-flex items-center justify-center px-5 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm rounded-xl shadow-md transition-all flex-shrink-0"
+              >
+                <Sparkles className="h-4 w-4 mr-2 text-slate-950" /> Ask AI Tutor
+              </Link>
+              <Link
+                href="/subjects"
+                className="inline-flex items-center justify-center px-5 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold text-sm shadow transition-all flex-shrink-0 border border-white/20"
+              >
+                <BookOpen className="h-4 w-4 mr-2" /> Browse Subjects
+              </Link>
+            </div>
           </div>
 
           {/* Quick Learning Access Shell */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* AI Doubts Tutor Card */}
+            <Card className="p-6 border-slate-200 hover:shadow-md transition-all flex flex-col justify-between bg-gradient-to-b from-emerald-50/50 to-white dark:from-slate-900 dark:to-slate-900">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl w-fit">
+                    <Bot className="h-6 w-6" />
+                  </div>
+                  <Badge variant="success">AI Assistant</Badge>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">AI Doubts Tutor</h2>
+                <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                  Ask competitive exam doubts (JEE, NEET, GATE) with RAG-grounded instant AI answers.
+                </p>
+              </div>
+
+              <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">24/7 AI Assistant</span>
+                <Link href="/ai/tutor" className="text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 flex items-center">
+                  Ask Doubts <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
+            </Card>
+
             <Card className="p-6 border-slate-200 hover:shadow-md transition-all flex flex-col justify-between">
               <div className="space-y-3">
                 <div className="p-3 bg-brand-50 rounded-xl text-brand-600 w-fit">

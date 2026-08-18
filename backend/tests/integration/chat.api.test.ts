@@ -206,9 +206,9 @@ describe('Phase 6C - Chat Memory & Session API Integration Tests', () => {
     });
   });
 
-  describe('DELETE /api/v1/ai/chat/:sessionId (Archive Session)', () => {
-    it('should return 404 NOT_FOUND when archiving non-existent or unowned session', async () => {
-      jest.spyOn(chatSessionRepository, 'archiveSession').mockResolvedValue(null);
+  describe('DELETE /api/v1/ai/chat/:sessionId (Delete Session)', () => {
+    it('should return 404 NOT_FOUND when deleting non-existent or unowned session', async () => {
+      jest.spyOn(chatSessionRepository, 'findByIdAndUserId').mockResolvedValue(null);
 
       const res = await request(app)
         .delete('/api/v1/ai/chat/507f1f77bcf86cd799439002')
@@ -218,16 +218,19 @@ describe('Phase 6C - Chat Memory & Session API Integration Tests', () => {
       expect(res.body.errorCode).toBe('NOT_FOUND');
     });
 
-    it('should successfully archive session when authorized', async () => {
-      const mockArchived = { _id: '507f1f77bcf86cd799439001', status: 'Archived' };
-      jest.spyOn(chatSessionRepository, 'archiveSession').mockResolvedValue(mockArchived as any);
+    it('should successfully delete session and associated messages when authorized', async () => {
+      const mockSession = { _id: '507f1f77bcf86cd799439001', userId: studentUser1.userId };
+      jest.spyOn(chatSessionRepository, 'findByIdAndUserId').mockResolvedValue(mockSession as any);
+      jest.spyOn(chatMessageRepository, 'deleteBySessionId').mockResolvedValue(3);
+      jest.spyOn(chatSessionRepository, 'deleteSession').mockResolvedValue(true);
 
       const res = await request(app)
         .delete('/api/v1/ai/chat/507f1f77bcf86cd799439001')
         .set('Authorization', `Bearer ${tokenUser1}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.message).toContain('archived');
+      expect(res.body.message).toContain('deleted');
+      expect(res.body.data).toEqual({ sessionId: '507f1f77bcf86cd799439001' });
     });
   });
 

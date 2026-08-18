@@ -94,12 +94,24 @@ export class ChatSessionRepository {
       { new: true }
     ).exec();
   }
+
+  public async deleteSession(id: string, userId: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(userId)) return false;
+    const result = await ChatSessionModel.deleteOne({ _id: id, userId }).exec();
+    return (result.deletedCount || 0) > 0;
+  }
 }
 
 export class ChatMessageRepository {
   public async create(data: Partial<IChatMessageDocument>): Promise<IChatMessageDocument> {
     const message = new ChatMessageModel(data);
     return await message.save();
+  }
+
+  public async deleteBySessionId(sessionId: string): Promise<number> {
+    if (!Types.ObjectId.isValid(sessionId)) return 0;
+    const result = await ChatMessageModel.deleteMany({ sessionId }).exec();
+    return result.deletedCount || 0;
   }
 
   public async findBySessionId(sessionId: string): Promise<IChatMessageDocument[]> {

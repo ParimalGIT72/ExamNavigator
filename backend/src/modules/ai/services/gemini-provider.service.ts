@@ -21,7 +21,7 @@ export class GeminiProviderService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || '';
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
-    this.model = process.env.GEMINI_MODEL || 'gemini-2.5-pro';
+    this.model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   }
 
   public async generateContent(
@@ -34,7 +34,7 @@ export class GeminiProviderService {
     // Estimate input tokens (approx 4 chars per token)
     const promptTokens = Math.max(1, Math.ceil(prompt.length / 4));
 
-    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
+    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test') {
       // Return structured educational response for test/dev environment
       const mockResponseText = `[Gemini 2.5 Pro Response]
 
@@ -126,7 +126,7 @@ Sources: Official NCERT & Competitive Exam Study Notes.`;
     options: IGeminiGenerateOptions = {},
     onToken: (token: string) => void
   ): Promise<IGeminiResponse> {
-    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
+    if (!this.apiKey || this.apiKey === 'mock-key' || process.env.NODE_ENV === 'test') {
       const mockResult = await this.generateContent(prompt, options);
       const chunks = mockResult.text.split(/(?<=\s)/);
       for (const chunk of chunks) {
@@ -188,7 +188,7 @@ Sources: Official NCERT & Competitive Exam Study Notes.`;
     try {
       while (true) {
         if (options.signal?.aborted) {
-          try { reader.cancel(); } catch {}
+          try { reader.cancel(); } catch { }
           const abortErr = new Error('Generation cancelled by user');
           abortErr.name = 'AbortError';
           throw abortErr;

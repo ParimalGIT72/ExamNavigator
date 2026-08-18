@@ -31,7 +31,7 @@ export const ChatSidebar: React.FC<IChatSidebarProps> = ({
           </div>
           <div>
             <h2 className="font-semibold text-sm text-white">AI Doubts Tutor</h2>
-            <p className="text-xs text-slate-400">Phase 6 RAG Engine</p>
+            <p className="text-xs text-slate-400">Syllabus Grounded AI</p>
           </div>
         </div>
 
