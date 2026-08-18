@@ -1,9 +1,23 @@
-export type ExamType = 'JEE' | 'NEET' | 'MHT-CET' | 'University' | 'Other';
+export type ExamType = 'JEE' | 'NEET' | 'MHT-CET' | 'GATE' | 'CAT' | 'University' | 'Other' | string;
 export type DifficultyLevel = 'Easy' | 'Medium' | 'Hard';
 export type ResourceType = 'PDF' | 'Video' | 'Notes' | 'FormulaSheet' | 'Other';
 
+export interface IExam {
+  _id: string;
+  code: string;
+  name: string;
+  category: 'Engineering' | 'Medical' | 'Management' | 'General' | string;
+  description?: string;
+  icon?: string;
+  order: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface ISubject {
   _id: string;
+  examId?: string;
   name: string;
   code: string;
   examType: ExamType;
@@ -80,6 +94,7 @@ export interface IAcademicQueryParams {
   sort?: string;
   order?: 'asc' | 'desc';
   search?: string;
+  examId?: string;
   examType?: ExamType;
   difficultyLevel?: DifficultyLevel;
   resourceType?: ResourceType;

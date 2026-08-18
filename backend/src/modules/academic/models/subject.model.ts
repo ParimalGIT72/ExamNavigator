@@ -2,9 +2,10 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ISubjectDocument extends Document {
   _id: mongoose.Types.ObjectId;
+  examId?: mongoose.Types.ObjectId;
   name: string;
   code: string;
-  examType: 'JEE' | 'NEET' | 'MHT-CET' | 'University' | 'Other';
+  examType: string;
   description?: string;
   icon?: string;
   order: number;
@@ -15,22 +16,24 @@ export interface ISubjectDocument extends Document {
 
 const SubjectSchema = new Schema<ISubjectDocument>(
   {
+    examId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Exam',
+      index: true,
+    },
     name: {
       type: String,
       required: [true, 'Subject name is required'],
-      unique: true,
       trim: true,
     },
     code: {
       type: String,
       required: [true, 'Subject code is required'],
-      unique: true,
       uppercase: true,
       trim: true,
     },
     examType: {
       type: String,
-      enum: ['JEE', 'NEET', 'MHT-CET', 'University', 'Other'],
       required: true,
       default: 'JEE',
     },
@@ -56,6 +59,10 @@ const SubjectSchema = new Schema<ISubjectDocument>(
   }
 );
 
+// Exam-scoped compound unique indexes
+SubjectSchema.index({ examId: 1, code: 1 }, { unique: true, sparse: true });
+SubjectSchema.index({ examId: 1, name: 1 }, { unique: true, sparse: true });
+SubjectSchema.index({ code: 1, examType: 1 }, { unique: true, sparse: true });
 SubjectSchema.index({ examType: 1, isActive: 1 });
 
 export const SubjectModel = mongoose.model<ISubjectDocument>('Subject', SubjectSchema, 'subjects');

@@ -30,6 +30,22 @@ export class SubjectRepository {
     return await SubjectModel.findOne({ code: code.toUpperCase() }).exec();
   }
 
+  public async findByNameAndExam(name: string, examIdentifier: string): Promise<ISubjectDocument | null> {
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(examIdentifier);
+    const filter = isObjectId
+      ? { name: { $regex: new RegExp(`^${name}$`, 'i') }, examId: examIdentifier }
+      : { name: { $regex: new RegExp(`^${name}$`, 'i') }, examType: examIdentifier };
+    return await SubjectModel.findOne(filter).exec();
+  }
+
+  public async findByCodeAndExam(code: string, examIdentifier: string): Promise<ISubjectDocument | null> {
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(examIdentifier);
+    const filter = isObjectId
+      ? { code: code.toUpperCase(), examId: examIdentifier }
+      : { code: code.toUpperCase(), examType: examIdentifier };
+    return await SubjectModel.findOne(filter).exec();
+  }
+
   public async find(filter: FilterQuery<ISubjectDocument> = {}, options: IPaginationOptions = {}): Promise<ISubjectDocument[]> {
     const { page = 1, limit = 20, sort = 'order', order = 'asc', search } = options;
     const queryFilter: FilterQuery<ISubjectDocument> = { ...filter };

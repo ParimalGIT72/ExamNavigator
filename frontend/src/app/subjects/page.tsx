@@ -11,7 +11,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
-import { useSubjectsQuery } from '@/hooks/useAcademic';
+import { useSubjectsQuery, useExamsQuery } from '@/hooks/useAcademic';
 import { ExamType, IAcademicQueryParams } from '@/types';
 
 export default function SubjectsPage() {
@@ -23,6 +23,7 @@ export default function SubjectsPage() {
   });
 
   const { data, isLoading, isError, error } = useSubjectsQuery(params);
+  const { data: examsData } = useExamsQuery();
 
   const handleSearchChange = (search: string) => {
     setParams((prev) => ({ ...prev, search, page: 1 }));
@@ -39,6 +40,20 @@ export default function SubjectsPage() {
   const handlePageChange = (page: number) => {
     setParams((prev) => ({ ...prev, page }));
   };
+
+  const examFilterOptions = [
+    { label: 'All Registered Exams', value: '' },
+    ...(examsData?.items?.map((exam) => ({
+      label: `${exam.code} (${exam.name})`,
+      value: exam.code,
+    })) || [
+      { label: 'JEE (Engineering)', value: 'JEE' },
+      { label: 'NEET (Medical)', value: 'NEET' },
+      { label: 'MHT-CET', value: 'MHT-CET' },
+      { label: 'GATE (Engineering)', value: 'GATE' },
+      { label: 'CAT (Management)', value: 'CAT' },
+    ]),
+  ];
 
   return (
     <ProtectedRoute>
@@ -71,14 +86,7 @@ export default function SubjectsPage() {
                 name: 'Filter by Exam',
                 key: 'examType',
                 value: params.examType || '',
-                options: [
-                  { label: 'All Competitive Exams', value: '' },
-                  { label: 'JEE (Engineering)', value: 'JEE' },
-                  { label: 'NEET (Medical)', value: 'NEET' },
-                  { label: 'MHT-CET', value: 'MHT-CET' },
-                  { label: 'University Exams', value: 'University' },
-                  { label: 'Other Exams', value: 'Other' },
-                ],
+                options: examFilterOptions,
                 onChange: handleExamTypeChange,
               },
             ]}
@@ -145,7 +153,7 @@ export default function SubjectsPage() {
           {!isLoading && data && data.items.length === 0 && (
             <EmptyState
               title="No Subjects Available"
-              description="No subjects matched your filter criteria. Try adjusting your search query or exam filter."
+              description="No subjects available for your selected exam."
             />
           )}
         </div>

@@ -8,15 +8,26 @@ import {
   ChapterService,
   TopicService,
   LearningResourceService,
+  IUserContext,
 } from '../services/academic.service';
 import { ApiResponse } from '../../../utils/api-response';
+
+const getUserContext = (req: Request): IUserContext | undefined => {
+  const user = (req as any).user;
+  if (!user || !user.userId) return undefined;
+  return {
+    userId: user.userId,
+    role: user.role || 'Student',
+  };
+};
 
 export class SubjectController {
   constructor(private subjectSvc: SubjectService = subjectService) {}
 
   public getSubjects = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await this.subjectSvc.getSubjects(req.query as any);
+      const userContext = getUserContext(req);
+      const result = await this.subjectSvc.getSubjects(req.query as any, userContext);
       ApiResponse.success(res, 'Subjects retrieved successfully.', result);
     } catch (error) {
       next(error);
@@ -26,7 +37,8 @@ export class SubjectController {
   public getSubjectById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id || req.params.subjectId;
-      const subject = await this.subjectSvc.getSubjectById(id);
+      const userContext = getUserContext(req);
+      const subject = await this.subjectSvc.getSubjectById(id, userContext);
       ApiResponse.success(res, 'Subject retrieved successfully.', subject);
     } catch (error) {
       next(error);
@@ -72,7 +84,8 @@ export class ChapterController {
       if (req.params.subjectId) {
         queryParams.subjectId = req.params.subjectId;
       }
-      const result = await this.chapterSvc.getChapters(queryParams as any);
+      const userContext = getUserContext(req);
+      const result = await this.chapterSvc.getChapters(queryParams as any, userContext);
       ApiResponse.success(res, 'Chapters retrieved successfully.', result);
     } catch (error) {
       next(error);
@@ -82,7 +95,8 @@ export class ChapterController {
   public getChapterById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id || req.params.chapterId;
-      const chapter = await this.chapterSvc.getChapterById(id);
+      const userContext = getUserContext(req);
+      const chapter = await this.chapterSvc.getChapterById(id, userContext);
       ApiResponse.success(res, 'Chapter retrieved successfully.', chapter);
     } catch (error) {
       next(error);
@@ -128,7 +142,8 @@ export class TopicController {
       if (req.params.chapterId) {
         queryParams.chapterId = req.params.chapterId;
       }
-      const result = await this.topicSvc.getTopics(queryParams as any);
+      const userContext = getUserContext(req);
+      const result = await this.topicSvc.getTopics(queryParams as any, userContext);
       ApiResponse.success(res, 'Topics retrieved successfully.', result);
     } catch (error) {
       next(error);
@@ -138,7 +153,8 @@ export class TopicController {
   public getTopicById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id || req.params.topicId;
-      const topic = await this.topicSvc.getTopicById(id);
+      const userContext = getUserContext(req);
+      const topic = await this.topicSvc.getTopicById(id, userContext);
       ApiResponse.success(res, 'Topic retrieved successfully.', topic);
     } catch (error) {
       next(error);
@@ -184,7 +200,8 @@ export class LearningResourceController {
       if (req.params.topicId) {
         queryParams.topicId = req.params.topicId;
       }
-      const result = await this.resourceSvc.getResources(queryParams as any);
+      const userContext = getUserContext(req);
+      const result = await this.resourceSvc.getResources(queryParams as any, userContext);
       ApiResponse.success(res, 'Learning resources retrieved successfully.', result);
     } catch (error) {
       next(error);
@@ -194,7 +211,8 @@ export class LearningResourceController {
   public getResourceById = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const id = req.params.id || req.params.resourceId;
-      const resource = await this.resourceSvc.getResourceById(id);
+      const userContext = getUserContext(req);
+      const resource = await this.resourceSvc.getResourceById(id, userContext);
       ApiResponse.success(res, 'Learning resource retrieved successfully.', resource);
     } catch (error) {
       next(error);

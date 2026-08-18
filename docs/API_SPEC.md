@@ -680,6 +680,24 @@ Yes
 
 ---
 
+# 30B. Get Registered Exams
+
+Endpoint
+
+```http
+GET /exams
+```
+
+Purpose
+
+Retrieve active registered exams for use by public/student clients.
+
+Authentication Required
+
+Yes
+
+---
+
 # 31. Get Subjects
 
 Endpoint
@@ -690,11 +708,16 @@ GET /subjects
 
 Purpose
 
-Retrieve all available subjects.
+Retrieve subjects scoped server-side to the authenticated student's assigned target exam (`UserProfile.targetExam`).
 
 Authentication Required
 
 Yes
+
+Security & Scoping Note:
+
+- Client-supplied `?examType=...` query parameters CANNOT override a student's assigned target exam.
+- Direct resource access (`GET /subjects/:subjectId`, `GET /subjects/:subjectId/chapters`) enforces target exam ownership checks and returns `403 Forbidden` (`FORBIDDEN_EXAM_CURRICULUM`) if a student attempts direct ID manipulation across exams.
 
 ---
 

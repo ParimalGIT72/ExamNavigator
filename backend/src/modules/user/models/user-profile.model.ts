@@ -7,7 +7,7 @@ export interface IUserProfileDocument extends Document {
   gender?: 'Male' | 'Female' | 'Other' | 'PreferNotToSay';
   dateOfBirth?: Date;
   phoneNumber?: string;
-  targetExam: 'JEE' | 'NEET' | 'MHT-CET' | 'University' | 'Other';
+  targetExam: string;
   targetYear?: number;
   preferredSubjects?: string[];
   learningPreferences?: Record<string, any>;
@@ -42,8 +42,10 @@ const UserProfileSchema = new Schema<IUserProfileDocument>(
     },
     targetExam: {
       type: String,
-      enum: ['JEE', 'NEET', 'MHT-CET', 'University', 'Other'],
+      required: true,
       default: 'JEE',
+      trim: true,
+      uppercase: true,
     },
     targetYear: {
       type: Number,

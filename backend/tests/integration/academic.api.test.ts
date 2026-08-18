@@ -10,6 +10,9 @@ import {
   learningResourceRepository,
 } from '../../src/modules/academic/repositories/academic.repository';
 
+import { userProfileRepository } from '../../src/modules/user/repositories/user-profile.repository';
+import { ExamModel } from '../../src/modules/academic/models/exam.model';
+
 mongoose.set('bufferCommands', false);
 
 describe('Academic Module Integration Tests', () => {
@@ -83,6 +86,20 @@ describe('Academic Module Integration Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    jest.spyOn(userProfileRepository, 'findByUserId').mockResolvedValue({
+      userId: '507f1f77bcf86cd799439011',
+      targetExam: 'JEE',
+    } as any);
+
+    jest.spyOn(ExamModel, 'findOne').mockReturnValue({
+      exec: jest.fn().mockResolvedValue({
+        _id: '507f1f77bcf86cd799439099',
+        code: 'JEE',
+        name: 'Joint Entrance Exam',
+        isActive: true,
+      }),
+    } as any);
+
     // Subject Repository Spies
     jest.spyOn(subjectRepository, 'findById').mockImplementation(async (id: string) => {
       if (id === sampleSubjectId) return mockSubject;
@@ -90,6 +107,8 @@ describe('Academic Module Integration Tests', () => {
     });
     jest.spyOn(subjectRepository, 'findByName').mockResolvedValue(null);
     jest.spyOn(subjectRepository, 'findByCode').mockResolvedValue(null);
+    jest.spyOn(subjectRepository, 'findByNameAndExam').mockResolvedValue(null);
+    jest.spyOn(subjectRepository, 'findByCodeAndExam').mockResolvedValue(null);
     jest.spyOn(subjectRepository, 'find').mockResolvedValue([mockSubject]);
     jest.spyOn(subjectRepository, 'count').mockResolvedValue(1);
     jest.spyOn(subjectRepository, 'create').mockImplementation(async (data: any) => ({ ...mockSubject, ...data }));

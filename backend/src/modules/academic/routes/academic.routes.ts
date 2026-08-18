@@ -5,6 +5,7 @@ import {
   topicController,
   learningResourceController,
 } from '../controllers/academic.controller';
+import { examController } from '../controllers/exam.controller';
 import { authenticateJwt } from '../../../middleware/auth.middleware';
 import { requireRole } from '../../../middleware/role.middleware';
 import {
@@ -26,12 +27,33 @@ import {
   resourceQuerySchema,
   resourceIdParamSchema,
 } from '../validations/academic.validation';
+import {
+  createExamSchema,
+  updateExamSchema,
+  examQuerySchema,
+  examIdParamSchema,
+} from '../validations/exam.validation';
 
 const router = Router();
 
 // ==========================================
 // Student / General Authenticated Endpoints
 // ==========================================
+
+// Exams
+router.get(
+  '/exams',
+  authenticateJwt,
+  validateRequest({ query: examQuerySchema }),
+  examController.getExams
+);
+
+router.get(
+  '/exams/:examId',
+  authenticateJwt,
+  validateRequest({ params: examIdParamSchema }),
+  examController.getExamById
+);
 
 // Subjects
 router.get(
@@ -63,6 +85,13 @@ router.get(
   chapterController.getChapterById
 );
 
+router.get(
+  '/chapters',
+  authenticateJwt,
+  validateRequest({ query: chapterQuerySchema }),
+  chapterController.getChapters
+);
+
 // Topics
 router.get(
   '/chapters/:chapterId/topics',
@@ -76,6 +105,13 @@ router.get(
   authenticateJwt,
   validateRequest({ params: topicIdParamSchema }),
   topicController.getTopicById
+);
+
+router.get(
+  '/topics',
+  authenticateJwt,
+  validateRequest({ query: topicQuerySchema }),
+  topicController.getTopics
 );
 
 // Learning Resources
@@ -93,9 +129,41 @@ router.get(
   learningResourceController.getResourceById
 );
 
+router.get(
+  '/resources',
+  authenticateJwt,
+  validateRequest({ query: resourceQuerySchema }),
+  learningResourceController.getResources
+);
+
 // ==========================================
-// Administrator Endpoints (Admin Role Only)
+// Admin Operations
 // ==========================================
+
+// Admin Exam Management
+router.post(
+  '/admin/exams',
+  authenticateJwt,
+  requireRole(['Admin']),
+  validateRequest({ body: createExamSchema }),
+  examController.createExam
+);
+
+router.patch(
+  '/admin/exams/:examId',
+  authenticateJwt,
+  requireRole(['Admin']),
+  validateRequest({ params: examIdParamSchema, body: updateExamSchema }),
+  examController.updateExam
+);
+
+router.delete(
+  '/admin/exams/:examId',
+  authenticateJwt,
+  requireRole(['Admin']),
+  validateRequest({ params: examIdParamSchema }),
+  examController.deleteExam
+);
 
 // Admin Subject Management
 router.post(

@@ -13,6 +13,8 @@ import { ISubjectDocument } from '../models/subject.model';
 import { IChapterDocument } from '../models/chapter.model';
 import { ITopicDocument } from '../models/topic.model';
 import { ILearningResourceDocument } from '../models/learning-resource.model';
+import { ExamModel } from '../models/exam.model';
+import { userProfileRepository } from '../../user/repositories/user-profile.repository';
 import { AppError } from '../../../utils/app-error';
 import { FilterQuery } from 'mongoose';
 
@@ -26,22 +28,72 @@ export interface IPaginatedResult<T> {
   };
 }
 
+export interface IUserContext {
+  userId: string;
+  role: string;
+}
+
 export class SubjectService {
   constructor(
     private subjectRepo: SubjectRepository = subjectRepository,
     private chapterRepo: ChapterRepository = chapterRepository
   ) {}
 
+  public async resolveUserTargetExam(userContext?: IUserContext): Promise<{ examId: string; examCode: string } | null> {
+    if (!userContext || userContext.role === 'Admin') {
+      return null;
+    }
+
+    const profile = await userProfileRepository.findByUserId(userContext.userId);
+    const targetExamCode = (profile?.targetExam || 'JEE').toUpperCase().trim();
+
+    const exam = await ExamModel.findOne({ code: targetExamCode, isActive: true }).exec();
+    if (!exam) {
+      throw new AppError(
+        `Assigned target exam '${targetExamCode}' is invalid or inactive.`,
+        400,
+        'INVALID_TARGET_EXAM'
+      );
+    }
+
+    return {
+      examId: exam._id.toString(),
+      examCode: exam.code,
+    };
+  }
+
+  public async validateSubjectAccess(subject: ISubjectDocument, userContext?: IUserContext): Promise<void> {
+    const targetExam = await this.resolveUserTargetExam(userContext);
+    if (!targetExam) return;
+
+    const matchesExamId = subject.examId ? subject.examId.toString() === targetExam.examId : false;
+    const matchesExamType = subject.examType ? subject.examType.toUpperCase() === targetExam.examCode : false;
+
+    if (!matchesExamId && !matchesExamType) {
+      throw new AppError(
+        'Access denied. Subject does not belong to your assigned target exam curriculum.',
+        403,
+        'FORBIDDEN_EXAM_CURRICULUM'
+      );
+    }
+  }
+
   public async createSubject(data: Partial<ISubjectDocument>): Promise<ISubjectDocument> {
+    const examScope = data.examId ? data.examId.toString() : data.examType;
+
     if (data.name) {
-      const existingName = await this.subjectRepo.findByName(data.name);
+      const existingName = examScope
+        ? await this.subjectRepo.findByNameAndExam(data.name, examScope)
+        : await this.subjectRepo.findByName(data.name);
       if (existingName) {
         throw new AppError(`Subject with name '${data.name}' already exists.`, 409, 'SUBJECT_NAME_EXISTS');
       }
     }
 
     if (data.code) {
-      const existingCode = await this.subjectRepo.findByCode(data.code);
+      const existingCode = examScope
+        ? await this.subjectRepo.findByCodeAndExam(data.code, examScope)
+        : await this.subjectRepo.findByCode(data.code);
       if (existingCode) {
         throw new AppError(`Subject with code '${data.code}' already exists.`, 409, 'SUBJECT_CODE_EXISTS');
       }
@@ -50,26 +102,39 @@ export class SubjectService {
     return await this.subjectRepo.create(data);
   }
 
-  public async getSubjectById(id: string): Promise<ISubjectDocument> {
+  public async getSubjectById(id: string, userContext?: IUserContext): Promise<ISubjectDocument> {
     const subject = await this.subjectRepo.findById(id);
     if (!subject) {
       throw new AppError(`Subject not found with id '${id}'.`, 404, 'SUBJECT_NOT_FOUND');
     }
+    await this.validateSubjectAccess(subject, userContext);
     return subject;
   }
 
   public async getSubjects(
     query: {
       examType?: string;
+      examId?: string;
       isActive?: boolean;
-    } & IPaginationOptions
+    } & IPaginationOptions,
+    userContext?: IUserContext
   ): Promise<IPaginatedResult<ISubjectDocument>> {
-    const { page = 1, limit = 20, sort = 'order', order = 'asc', search, examType, isActive } = query;
+    const { page = 1, limit = 20, sort = 'order', order = 'asc', search, examType, examId, isActive } = query;
     const filter: FilterQuery<ISubjectDocument> = {};
 
-    if (examType) {
-      filter.examType = examType;
+    const targetExam = await this.resolveUserTargetExam(userContext);
+
+    if (targetExam) {
+      // SECURITY RULE: Student role is strictly scoped to assigned targetExam. Client query overrides are ignored.
+      filter.$or = [{ examId: targetExam.examId }, { examType: targetExam.examCode }];
+    } else {
+      if (examId) {
+        filter.examId = examId;
+      } else if (examType) {
+        filter.examType = examType;
+      }
     }
+
     if (isActive !== undefined) {
       filter.isActive = isActive;
     }
@@ -95,15 +160,23 @@ export class SubjectService {
       throw new AppError(`Subject not found with id '${id}'.`, 404, 'SUBJECT_NOT_FOUND');
     }
 
+    const examScope = updateData.examId
+      ? updateData.examId.toString()
+      : updateData.examType || existing.examId?.toString() || existing.examType;
+
     if (updateData.name && updateData.name.toLowerCase() !== existing.name.toLowerCase()) {
-      const duplicateName = await this.subjectRepo.findByName(updateData.name);
+      const duplicateName = examScope
+        ? await this.subjectRepo.findByNameAndExam(updateData.name, examScope)
+        : await this.subjectRepo.findByName(updateData.name);
       if (duplicateName) {
         throw new AppError(`Subject with name '${updateData.name}' already exists.`, 409, 'SUBJECT_NAME_EXISTS');
       }
     }
 
     if (updateData.code && updateData.code.toUpperCase() !== existing.code.toUpperCase()) {
-      const duplicateCode = await this.subjectRepo.findByCode(updateData.code);
+      const duplicateCode = examScope
+        ? await this.subjectRepo.findByCodeAndExam(updateData.code, examScope)
+        : await this.subjectRepo.findByCode(updateData.code);
       if (duplicateCode) {
         throw new AppError(`Subject with code '${updateData.code}' already exists.`, 409, 'SUBJECT_CODE_EXISTS');
       }
@@ -135,7 +208,8 @@ export class ChapterService {
   constructor(
     private chapterRepo: ChapterRepository = chapterRepository,
     private subjectRepo: SubjectRepository = subjectRepository,
-    private topicRepo: TopicRepository = topicRepository
+    private topicRepo: TopicRepository = topicRepository,
+    private subjectSvc: SubjectService = new SubjectService()
   ) {}
 
   public async createChapter(data: Partial<IChapterDocument>): Promise<IChapterDocument> {
@@ -162,11 +236,17 @@ export class ChapterService {
     return await this.chapterRepo.create(data);
   }
 
-  public async getChapterById(id: string): Promise<IChapterDocument> {
+  public async getChapterById(id: string, userContext?: IUserContext): Promise<IChapterDocument> {
     const chapter = await this.chapterRepo.findById(id);
     if (!chapter) {
       throw new AppError(`Chapter not found with id '${id}'.`, 404, 'CHAPTER_NOT_FOUND');
     }
+
+    const subject = await this.subjectRepo.findById(chapter.subjectId.toString());
+    if (subject) {
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
+    }
+
     return chapter;
   }
 
@@ -174,14 +254,30 @@ export class ChapterService {
     query: {
       subjectId?: string;
       isActive?: boolean;
-    } & IPaginationOptions
+    } & IPaginationOptions,
+    userContext?: IUserContext
   ): Promise<IPaginatedResult<IChapterDocument>> {
     const { page = 1, limit = 20, sort = 'chapterNumber', order = 'asc', search, subjectId, isActive } = query;
     const filter: FilterQuery<IChapterDocument> = {};
 
     if (subjectId) {
+      const subject = await this.subjectRepo.findById(subjectId);
+      if (!subject) {
+        throw new AppError(`Parent subject not found with id '${subjectId}'.`, 404, 'SUBJECT_NOT_FOUND');
+      }
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
       filter.subjectId = subjectId;
+    } else {
+      const targetExam = await this.subjectSvc.resolveUserTargetExam(userContext);
+      if (targetExam) {
+        const allowedSubjects = await this.subjectRepo.find({
+          $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
+        });
+        const allowedSubjectIds = allowedSubjects.map((s) => s._id);
+        filter.subjectId = { $in: allowedSubjectIds };
+      }
     }
+
     if (isActive !== undefined) {
       filter.isActive = isActive;
     }
@@ -255,7 +351,8 @@ export class TopicService {
     private topicRepo: TopicRepository = topicRepository,
     private chapterRepo: ChapterRepository = chapterRepository,
     private subjectRepo: SubjectRepository = subjectRepository,
-    private resourceRepo: LearningResourceRepository = learningResourceRepository
+    private resourceRepo: LearningResourceRepository = learningResourceRepository,
+    private subjectSvc: SubjectService = new SubjectService()
   ) {}
 
   public async createTopic(data: Partial<ITopicDocument>): Promise<ITopicDocument> {
@@ -287,11 +384,17 @@ export class TopicService {
     return await this.topicRepo.create(data);
   }
 
-  public async getTopicById(id: string): Promise<ITopicDocument> {
+  public async getTopicById(id: string, userContext?: IUserContext): Promise<ITopicDocument> {
     const topic = await this.topicRepo.findById(id);
     if (!topic) {
       throw new AppError(`Topic not found with id '${id}'.`, 404, 'TOPIC_NOT_FOUND');
     }
+
+    const subject = await this.subjectRepo.findById(topic.subjectId.toString());
+    if (subject) {
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
+    }
+
     return topic;
   }
 
@@ -300,17 +403,39 @@ export class TopicService {
       chapterId?: string;
       subjectId?: string;
       difficultyLevel?: string;
-    } & IPaginationOptions
+    } & IPaginationOptions,
+    userContext?: IUserContext
   ): Promise<IPaginatedResult<ITopicDocument>> {
     const { page = 1, limit = 20, sort = 'topicNumber', order = 'asc', search, chapterId, subjectId, difficultyLevel } = query;
     const filter: FilterQuery<ITopicDocument> = {};
 
-    if (chapterId) {
-      filter.chapterId = chapterId;
-    }
     if (subjectId) {
+      const subject = await this.subjectRepo.findById(subjectId);
+      if (!subject) {
+        throw new AppError(`Parent subject not found with id '${subjectId}'.`, 404, 'SUBJECT_NOT_FOUND');
+      }
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
       filter.subjectId = subjectId;
+    } else if (chapterId) {
+      const chapter = await this.chapterRepo.findById(chapterId);
+      if (chapter) {
+        const subject = await this.subjectRepo.findById(chapter.subjectId.toString());
+        if (subject) {
+          await this.subjectSvc.validateSubjectAccess(subject, userContext);
+        }
+      }
+      filter.chapterId = chapterId;
+    } else {
+      const targetExam = await this.subjectSvc.resolveUserTargetExam(userContext);
+      if (targetExam) {
+        const allowedSubjects = await this.subjectRepo.find({
+          $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
+        });
+        const allowedSubjectIds = allowedSubjects.map((s) => s._id);
+        filter.subjectId = { $in: allowedSubjectIds };
+      }
     }
+
     if (difficultyLevel) {
       filter.difficultyLevel = difficultyLevel;
     }
@@ -391,7 +516,8 @@ export class LearningResourceService {
     private resourceRepo: LearningResourceRepository = learningResourceRepository,
     private topicRepo: TopicRepository = topicRepository,
     private chapterRepo: ChapterRepository = chapterRepository,
-    private subjectRepo: SubjectRepository = subjectRepository
+    private subjectRepo: SubjectRepository = subjectRepository,
+    private subjectSvc: SubjectService = new SubjectService()
   ) {}
 
   public async createResource(data: Partial<ILearningResourceDocument>): Promise<ILearningResourceDocument> {
@@ -417,11 +543,17 @@ export class LearningResourceService {
     return await this.resourceRepo.create(data);
   }
 
-  public async getResourceById(id: string): Promise<ILearningResourceDocument> {
+  public async getResourceById(id: string, userContext?: IUserContext): Promise<ILearningResourceDocument> {
     const resource = await this.resourceRepo.findById(id);
     if (!resource) {
       throw new AppError(`Learning resource not found with id '${id}'.`, 404, 'RESOURCE_NOT_FOUND');
     }
+
+    const subject = await this.subjectRepo.findById(resource.subjectId.toString());
+    if (subject) {
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
+    }
+
     return resource;
   }
 
@@ -431,19 +563,35 @@ export class LearningResourceService {
       chapterId?: string;
       subjectId?: string;
       resourceType?: string;
-    } & IPaginationOptions
+    } & IPaginationOptions,
+    userContext?: IUserContext
   ): Promise<IPaginatedResult<ILearningResourceDocument>> {
     const { page = 1, limit = 20, sort = 'createdAt', order = 'desc', search, topicId, chapterId, subjectId, resourceType } = query;
     const filter: FilterQuery<ILearningResourceDocument> = {};
+
+    if (subjectId) {
+      const subject = await this.subjectRepo.findById(subjectId);
+      if (!subject) {
+        throw new AppError(`Parent subject not found with id '${subjectId}'.`, 404, 'SUBJECT_NOT_FOUND');
+      }
+      await this.subjectSvc.validateSubjectAccess(subject, userContext);
+      filter.subjectId = subjectId;
+    } else {
+      const targetExam = await this.subjectSvc.resolveUserTargetExam(userContext);
+      if (targetExam) {
+        const allowedSubjects = await this.subjectRepo.find({
+          $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
+        });
+        const allowedSubjectIds = allowedSubjects.map((s) => s._id);
+        filter.subjectId = { $in: allowedSubjectIds };
+      }
+    }
 
     if (topicId) {
       filter.topicId = topicId;
     }
     if (chapterId) {
       filter.chapterId = chapterId;
-    }
-    if (subjectId) {
-      filter.subjectId = subjectId;
     }
     if (resourceType) {
       filter.resourceType = resourceType;

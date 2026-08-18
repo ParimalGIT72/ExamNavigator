@@ -3,6 +3,7 @@ import {
   IApiResponse,
   IAcademicQueryParams,
   IPaginatedResult,
+  IExam,
   ISubject,
   IChapter,
   ITopic,
@@ -22,6 +23,15 @@ function buildQueryString(params?: IAcademicQueryParams): string {
 }
 
 export class AcademicService {
+  // --- Exam Services ---
+  public static async getExams(params?: IAcademicQueryParams): Promise<IApiResponse<IPaginatedResult<IExam>>> {
+    return ApiClient.get<IPaginatedResult<IExam>>(`/exams${buildQueryString(params)}`);
+  }
+
+  public static async getExamById(examId: string): Promise<IApiResponse<{ exam: IExam }>> {
+    return ApiClient.get<{ exam: IExam }>(`/exams/${examId}`);
+  }
+
   // --- Subject Services ---
   public static async getSubjects(params?: IAcademicQueryParams): Promise<IApiResponse<IPaginatedResult<ISubject>>> {
     return ApiClient.get<IPaginatedResult<ISubject>>(`/subjects${buildQueryString(params)}`);

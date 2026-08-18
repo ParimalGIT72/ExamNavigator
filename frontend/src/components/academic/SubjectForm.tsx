@@ -9,13 +9,13 @@ import { ISubject } from '@/types';
 const subjectSchema = z.object({
   name: z.string().min(2, 'Subject name must be at least 2 characters'),
   code: z.string().min(2, 'Subject code must be at least 2 characters'),
-  examType: z.enum(['JEE', 'NEET', 'MHT-CET', 'University', 'Other']),
+  examType: z.string().min(1, 'Exam type is required'),
   description: z.string().optional(),
   order: z.number().min(0, 'Order must be non-negative'),
   isActive: z.boolean().default(true),
 });
 
-type SubjectFormData = z.infer<typeof subjectSchema>;
+export type SubjectFormData = z.infer<typeof subjectSchema>;
 
 export interface SubjectFormProps {
   initialData?: ISubject | null;
@@ -73,6 +73,8 @@ export const SubjectForm: React.FC<SubjectFormProps> = ({
             <option value="JEE">JEE</option>
             <option value="NEET">NEET</option>
             <option value="MHT-CET">MHT-CET</option>
+            <option value="GATE">GATE</option>
+            <option value="CAT">CAT</option>
             <option value="University">University</option>
             <option value="Other">Other</option>
           </select>

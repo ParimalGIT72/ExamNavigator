@@ -224,27 +224,27 @@ Users
 ---
 
 ```text
-Subjects
+Exams (ExamModel: canonical root entity)
 
 ↓
 
-Chapters
+Subjects (SubjectModel: examId ref Exam)
 
 ↓
 
-Topics
+Chapters (ChapterModel: subjectId ref Subject)
 
 ↓
 
-Documents
+Topics (TopicModel: chapterId ref Chapter)
 
 ↓
 
-Document Chunks
+Learning Resources (LearningResourceModel: topicId ref Topic)
 
 ↓
 
-Embeddings
+Embeddings (EmbeddingModel: chunk metadata filtering)
 ```
 
 ---

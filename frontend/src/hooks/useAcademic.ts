@@ -8,6 +8,35 @@ import {
   ILearningResource,
 } from '@/types';
 
+// ==================== EXAM HOOKS ====================
+
+export const useExamsQuery = (params?: IAcademicQueryParams) => {
+  return useQuery({
+    queryKey: ['exams', params],
+    queryFn: async () => {
+      const response = await AcademicService.getExams(params);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch exams');
+      }
+      return response.data;
+    },
+  });
+};
+
+export const useExamQuery = (examId: string) => {
+  return useQuery({
+    queryKey: ['exam', examId],
+    queryFn: async () => {
+      const response = await AcademicService.getExamById(examId);
+      if (!response.success || !response.data?.exam) {
+        throw new Error(response.message || 'Exam not found');
+      }
+      return response.data.exam;
+    },
+    enabled: !!examId,
+  });
+};
+
 // ==================== SUBJECT HOOKS ====================
 
 export const useSubjectsQuery = (params?: IAcademicQueryParams) => {
