@@ -108,6 +108,8 @@ export const createLearningResourceSchema = z.object({
   author: z.string().optional().default(''),
   fileSize: z.number().optional().default(0),
   mimeType: z.string().optional().default(''),
+  order: z.number().int().optional().default(1),
+  isActive: z.boolean().optional().default(true),
   metadata: z.record(z.unknown()).optional().default({}),
 });
 
@@ -118,6 +120,10 @@ export const resourceQuerySchema = paginationQuerySchema.extend({
   chapterId: objectIdSchema.optional(),
   subjectId: objectIdSchema.optional(),
   resourceType: z.enum(['PDF', 'Video', 'Text', 'Link', 'FormulaSheet']).optional(),
+  isActive: z
+    .string()
+    .optional()
+    .transform((val) => (val === undefined ? undefined : val === 'true')),
 });
 
 // Generic Request Validation Middleware

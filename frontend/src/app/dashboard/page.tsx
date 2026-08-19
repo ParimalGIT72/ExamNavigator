@@ -78,29 +78,50 @@ export default function DashboardPage() {
               </div>
             </Card>
 
+            {/* Quick Revision Card */}
+            <Card className="p-6 border-slate-200 hover:shadow-md transition-all flex flex-col justify-between bg-gradient-to-b from-amber-50/60 to-white dark:from-slate-900 dark:to-slate-900 lg:col-span-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-xl w-fit">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <Badge variant="warning">{targetExam} Formula Sheets</Badge>
+                </div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Quick Revision</h2>
+                <p className="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                  Fast formula sheets, key concepts, and high-priority revision notes for last-minute exam prep.
+                </p>
+              </div>
+
+              <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Last-Minute Prep</span>
+                <Link href="/quick-revision" className="text-sm font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center">
+                  Open Formula Sheets <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
+            </Card>
+
             {/* Platform Announcement Card */}
-            <Card className="p-6 border-slate-200 bg-white shadow-sm flex flex-col justify-between space-y-4 lg:col-span-2">
+            <Card className="p-6 border-slate-200 bg-white shadow-sm flex flex-col justify-between space-y-4 lg:col-span-1">
               <div className="flex items-center space-x-3">
                 <div className="p-2.5 bg-brand-50 rounded-xl text-brand-600">
                   <Bell className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Platform Announcements</h3>
-                  <p className="text-xs text-slate-500">System updates and curriculum progress</p>
+                  <h3 className="text-lg font-bold text-slate-900">Announcements</h3>
+                  <p className="text-xs text-slate-500">Curriculum progress</p>
                 </div>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
-                    <Badge variant="brand">{targetExam} Curriculum</Badge>
-                    <span className="text-xs font-semibold text-slate-900">Dynamic Multi-Exam Active</span>
+                    <Badge variant="brand">{targetExam} Active</Badge>
                   </div>
                   <p className="text-xs text-slate-600">
                     Your target exam curriculum ({targetExam}) is active. Browse your registered subjects below.
                   </p>
                 </div>
-                <span className="text-xs text-slate-400 font-medium">Updated</span>
               </div>
             </Card>
           </div>

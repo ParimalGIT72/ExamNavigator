@@ -563,10 +563,11 @@ export class LearningResourceService {
       chapterId?: string;
       subjectId?: string;
       resourceType?: string;
+      isActive?: boolean;
     } & IPaginationOptions,
     userContext?: IUserContext
   ): Promise<IPaginatedResult<ILearningResourceDocument>> {
-    const { page = 1, limit = 20, sort = 'createdAt', order = 'desc', search, topicId, chapterId, subjectId, resourceType } = query;
+    const { page = 1, limit = 20, sort = 'order', order = 'asc', search, topicId, chapterId, subjectId, resourceType, isActive } = query;
     const filter: FilterQuery<ILearningResourceDocument> = {};
 
     if (subjectId) {
@@ -595,6 +596,11 @@ export class LearningResourceService {
     }
     if (resourceType) {
       filter.resourceType = resourceType;
+    }
+    if (isActive !== undefined) {
+      filter.isActive = isActive;
+    } else if (userContext?.role !== 'Admin') {
+      filter.isActive = true;
     }
 
     const items = await this.resourceRepo.find(filter, { page, limit, sort, order, search });

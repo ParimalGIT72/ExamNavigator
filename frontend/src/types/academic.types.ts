@@ -26,6 +26,7 @@ export interface ISubject {
   order: number;
   isActive: boolean;
   chapterCount?: number;
+  resourceCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -71,6 +72,8 @@ export interface ILearningResource {
   author?: string;
   fileSize?: number;
   mimeType?: string;
+  order?: number;
+  isActive?: boolean;
   metadata?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
@@ -96,6 +99,9 @@ export interface IAcademicQueryParams {
   search?: string;
   examId?: string;
   examType?: ExamType;
+  subjectId?: string;
+  chapterId?: string;
+  topicId?: string;
   difficultyLevel?: DifficultyLevel;
   resourceType?: ResourceType;
   isActive?: boolean;

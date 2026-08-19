@@ -95,9 +95,27 @@ export class AcademicService {
     return ApiClient.delete(`/admin/topics/${topicId}`);
   }
 
-  // --- Learning Resource Services ---
-  public static async getResources(topicId: string, params?: IAcademicQueryParams): Promise<IApiResponse<IPaginatedResult<ILearningResource>>> {
-    return ApiClient.get<IPaginatedResult<ILearningResource>>(`/topics/${topicId}/resources${buildQueryString(params)}`);
+  public static async getResources(
+    topicId?: string,
+    subjectIdOrParams?: string | IAcademicQueryParams,
+    resourceType?: string,
+    params?: IAcademicQueryParams
+  ): Promise<IApiResponse<IPaginatedResult<ILearningResource>>> {
+    let queryObj: Record<string, any> = {};
+
+    if (typeof subjectIdOrParams === 'object') {
+      queryObj = { ...subjectIdOrParams };
+    } else {
+      if (subjectIdOrParams) queryObj.subjectId = subjectIdOrParams;
+      if (resourceType) queryObj.resourceType = resourceType;
+      if (params) queryObj = { ...queryObj, ...params };
+    }
+
+    const url = topicId
+      ? `/topics/${topicId}/resources${buildQueryString(queryObj)}`
+      : `/resources${buildQueryString(queryObj)}`;
+
+    return ApiClient.get<IPaginatedResult<ILearningResource>>(url);
   }
 
   public static async getResourceById(resourceId: string): Promise<IApiResponse<{ resource: ILearningResource }>> {

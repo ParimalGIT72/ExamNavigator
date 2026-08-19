@@ -278,17 +278,27 @@ export const useDeleteTopicMutation = () => {
 
 // ==================== LEARNING RESOURCE HOOKS ====================
 
-export const useResourcesQuery = (topicId: string, params?: IAcademicQueryParams) => {
+export const useResourcesQuery = (
+  topicIdOrFilter?: string | IAcademicQueryParams,
+  params?: IAcademicQueryParams
+) => {
+  const isStringTopic = typeof topicIdOrFilter === 'string';
+  const topicId = isStringTopic ? topicIdOrFilter : undefined;
+  const filterParams = isStringTopic ? params : topicIdOrFilter;
+
   return useQuery({
-    queryKey: ['resources', topicId, params],
+    queryKey: ['resources', topicIdOrFilter, params],
     queryFn: async () => {
-      const response = await AcademicService.getResources(topicId, params);
+      const response = isStringTopic
+        ? await AcademicService.getResources(topicId, params)
+        : await AcademicService.getResources(undefined, filterParams);
+
       if (!response.success || !response.data) {
         throw new Error(response.message || 'Failed to fetch learning resources');
       }
       return response.data;
     },
-    enabled: !!topicId,
+    enabled: isStringTopic ? !!topicId : !!filterParams,
   });
 };
 

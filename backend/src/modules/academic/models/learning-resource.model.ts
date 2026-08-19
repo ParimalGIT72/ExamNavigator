@@ -12,6 +12,8 @@ export interface ILearningResourceDocument extends Document {
   author?: string;
   fileSize?: number;
   mimeType?: string;
+  order?: number;
+  isActive?: boolean;
   metadata?: Record<string, unknown>;
   processingStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
   chunkCount?: number;
@@ -69,6 +71,15 @@ const LearningResourceSchema = new Schema<ILearningResourceDocument>(
       type: String,
       default: '',
     },
+    order: {
+      type: Number,
+      default: 1,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     metadata: {
       type: Map,
       of: Schema.Types.Mixed,
@@ -93,7 +104,7 @@ const LearningResourceSchema = new Schema<ILearningResourceDocument>(
   }
 );
 
-LearningResourceSchema.index({ topicId: 1 });
+LearningResourceSchema.index({ topicId: 1, order: 1 });
 LearningResourceSchema.index({ resourceType: 1 });
 
 export const LearningResourceModel = mongoose.model<ILearningResourceDocument>(
