@@ -63,6 +63,7 @@ const SubjectSchema = new Schema<ISubjectDocument>(
 SubjectSchema.index({ examId: 1, code: 1 }, { unique: true, sparse: true });
 SubjectSchema.index({ examId: 1, name: 1 }, { unique: true, sparse: true });
 SubjectSchema.index({ code: 1, examType: 1 }, { unique: true, sparse: true });
-SubjectSchema.index({ examType: 1, isActive: 1 });
+SubjectSchema.index({ examType: 1, isActive: 1, order: 1 });
+SubjectSchema.index({ examId: 1, isActive: 1, order: 1 });
 
 export const SubjectModel = mongoose.model<ISubjectDocument>('Subject', SubjectSchema, 'subjects');

@@ -106,6 +106,7 @@ const LearningResourceSchema = new Schema<ILearningResourceDocument>(
 
 LearningResourceSchema.index({ topicId: 1, order: 1 });
 LearningResourceSchema.index({ resourceType: 1 });
+LearningResourceSchema.index({ subjectId: 1, resourceType: 1, isActive: 1, order: 1 });
 
 export const LearningResourceModel = mongoose.model<ILearningResourceDocument>(
   'LearningResource',
