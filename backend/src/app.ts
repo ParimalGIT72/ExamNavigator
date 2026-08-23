@@ -42,6 +42,7 @@ const limiter = rateLimit({
 app.use('/api', limiter);
 
 import { aiRoutes } from './modules/ai/routes/ai.routes';
+import { progressRoutes } from './modules/progress/routes/progress.routes';
 
 // Mount Modular Monolith Routes
 app.use('/api/v1', systemRoutes);
@@ -50,6 +51,7 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1', academicRoutes);
 app.use('/api/v1', assessmentRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1', progressRoutes);
 
 // Centralized error handler
 app.use(errorHandler);

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { FileText, Video, File, Award, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { FileText, Video, File, Award, Download, ExternalLink, RefreshCw, CheckCircle2, Clock, Circle, RotateCcw } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -14,7 +14,8 @@ import { SkeletonCard, Skeleton } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { useTopicQuery, useResourcesQuery, useChapterQuery, useSubjectQuery } from '@/hooks/useAcademic';
-import { ResourceType, IAcademicQueryParams } from '@/types';
+import { useTopicProgressQuery, useUpdateTopicProgressMutation } from '@/hooks/useProgress';
+import { ResourceType, IAcademicQueryParams, EffectiveProgressStatus } from '@/types';
 
 export default function TopicDetailPage() {
   const params = useParams();
@@ -29,6 +30,15 @@ export default function TopicDetailPage() {
 
   const { data: topic, isLoading: isTopicLoading } = useTopicQuery(topicId);
   const { data: resourcesData, isLoading: isResourcesLoading, isError, error, refetch } = useResourcesQuery(topicId, queryParams);
+  const { data: progressData, isLoading: isProgressLoading } = useTopicProgressQuery(topicId);
+  const updateProgressMutation = useUpdateTopicProgressMutation();
+
+  const currentStatus: EffectiveProgressStatus = progressData?.status || 'NOT_STARTED';
+
+  const handleStatusChange = (newStatus: EffectiveProgressStatus) => {
+    if (updateProgressMutation.isPending || !topicId) return;
+    updateProgressMutation.mutate({ topicId, status: newStatus });
+  };
 
   // Resolve parent Chapter & Subject context
   const parentChapterId = typeof topic?.chapterId === 'object' ? topic.chapterId._id : topic?.chapterId || '';
@@ -129,6 +139,60 @@ export default function TopicDetailPage() {
                     ))}
                   </div>
                 )}
+
+                {/* Topic Progress Status Control */}
+                <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Learning Status:</span>
+                    {isProgressLoading ? (
+                      <Skeleton className="h-6 w-24 rounded-full" />
+                    ) : currentStatus === 'COMPLETED' ? (
+                      <Badge variant="success" className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+                      </Badge>
+                    ) : currentStatus === 'IN_PROGRESS' ? (
+                      <Badge variant="warning" className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" /> In Progress
+                      </Badge>
+                    ) : (
+                      <Badge variant="gray" className="flex items-center gap-1">
+                        <Circle className="h-3.5 w-3.5 text-slate-400" /> Not Started
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    {currentStatus !== 'IN_PROGRESS' && (
+                      <button
+                        onClick={() => handleStatusChange('IN_PROGRESS')}
+                        disabled={updateProgressMutation.isPending}
+                        className="inline-flex items-center px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        <Clock className="h-3.5 w-3.5 mr-1" /> Mark In Progress
+                      </button>
+                    )}
+
+                    {currentStatus !== 'COMPLETED' && (
+                      <button
+                        onClick={() => handleStatusChange('COMPLETED')}
+                        disabled={updateProgressMutation.isPending}
+                        className="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark Complete
+                      </button>
+                    )}
+
+                    {currentStatus !== 'NOT_STARTED' && (
+                      <button
+                        onClick={() => handleStatusChange('NOT_STARTED')}
+                        disabled={updateProgressMutation.isPending}
+                        className="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 mr-1" /> Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             )
           )}

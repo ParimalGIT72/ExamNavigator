@@ -132,3 +132,23 @@ export interface IRecommendationQueryParams {
   limit?: number;
   subjectId?: string;
 }
+
+// ==================== Phase 8A: Student Progress Types ====================
+
+export type EffectiveProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface ITopicProgressResponse {
+  topicId: string;
+  status: EffectiveProgressStatus;
+  lastProgressUpdatedAt: string | null;
+}
+
+export interface IProgressSummary {
+  totalSubjects: number;
+  totalTopics: number;
+  completedTopics: number;
+  inProgressTopics: number;
+  unstartedTopics: number;
+  overallCompletionPercentage: number;
+}
+
