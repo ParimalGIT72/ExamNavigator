@@ -18,6 +18,7 @@ const getUserContext = (req: Request): IUserContext | undefined => {
   return {
     userId: user.userId,
     role: user.role || 'Student',
+    targetExam: (req as any).academicContext?.targetExam,
   };
 };
 
@@ -69,6 +70,21 @@ export class SubjectController {
       const id = req.params.id || req.params.subjectId;
       await this.subjectSvc.deleteSubject(id);
       ApiResponse.success(res, 'Subject deleted successfully.');
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getRecommendedNextTopics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userContext = getUserContext(req);
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      const subjectId = req.query.subjectId ? (req.query.subjectId as string) : undefined;
+      const recommendations = await this.subjectSvc.getRecommendedNextTopics(
+        { limit, subjectId },
+        userContext
+      );
+      ApiResponse.success(res, 'Recommended study topics retrieved successfully.', recommendations);
     } catch (error) {
       next(error);
     }

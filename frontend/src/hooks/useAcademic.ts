@@ -8,6 +8,22 @@ import {
   ILearningResource,
 } from '@/types';
 
+// ==================== RECOMMENDATION HOOKS ====================
+
+export const useRecommendedTopicsQuery = (params?: { limit?: number; subjectId?: string }) => {
+  return useQuery({
+    queryKey: ['recommended-topics', params],
+    queryFn: async () => {
+      const response = await AcademicService.getRecommendedNextTopics(params);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch recommendations');
+      }
+      return response.data;
+    },
+    staleTime: 60 * 1000,
+  });
+};
+
 // ==================== EXAM HOOKS ====================
 
 export const useExamsQuery = (params?: IAcademicQueryParams) => {

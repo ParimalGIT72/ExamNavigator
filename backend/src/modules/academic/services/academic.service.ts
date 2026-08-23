@@ -31,17 +31,42 @@ export interface IPaginatedResult<T> {
 export interface IUserContext {
   userId: string;
   role: string;
+  targetExam?: { examId: string; examCode: string };
+}
+
+export interface IRecommendedTopicResult {
+  topicId: string;
+  title: string;
+  topicNumber: number;
+  summary?: string;
+  difficultyLevel: 'Easy' | 'Medium' | 'Hard';
+  importanceScore: number;
+  chapterId: string;
+  chapterTitle: string;
+  chapterNumber: number;
+  chapterWeightage?: number;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  priorityScore: number;
+  priorityLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  explanation: string[];
 }
 
 export class SubjectService {
   constructor(
     private subjectRepo: SubjectRepository = subjectRepository,
-    private chapterRepo: ChapterRepository = chapterRepository
+    private chapterRepo: ChapterRepository = chapterRepository,
+    private topicRepo: TopicRepository = topicRepository
   ) {}
 
   public async resolveUserTargetExam(userContext?: IUserContext): Promise<{ examId: string; examCode: string } | null> {
     if (!userContext || userContext.role === 'Admin') {
       return null;
+    }
+
+    if (userContext.targetExam && userContext.targetExam.examId && userContext.targetExam.examCode) {
+      return userContext.targetExam;
     }
 
     const profile = await userProfileRepository.findByUserId(userContext.userId);
@@ -56,10 +81,13 @@ export class SubjectService {
       );
     }
 
-    return {
+    const resolved = {
       examId: exam._id.toString(),
       examCode: exam.code,
     };
+
+    userContext.targetExam = resolved;
+    return resolved;
   }
 
   public async validateSubjectAccess(subject: ISubjectDocument, userContext?: IUserContext): Promise<void> {
@@ -201,6 +229,185 @@ export class SubjectService {
     }
 
     return await this.subjectRepo.deleteById(id);
+  }
+
+  public async getRecommendedNextTopics(
+    query: { limit?: number; subjectId?: string },
+    userContext?: IUserContext
+  ): Promise<IRecommendedTopicResult[]> {
+    const targetExam = await this.resolveUserTargetExam(userContext);
+    if (!targetExam) {
+      return [];
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit) || 5, 1), 20);
+
+    // Batch Query 1 — Resolve student target exam subjects
+    const allowedSubjects = await this.subjectRepo.find({
+      $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
+      isActive: true,
+    });
+
+    const allowedSubjectMap = new Map<string, ISubjectDocument>();
+    allowedSubjects.forEach((s) => allowedSubjectMap.set(s._id.toString(), s));
+
+    // Validate optional subjectId filter
+    let filterSubjectIds = Array.from(allowedSubjectMap.keys());
+    if (query.subjectId) {
+      const isObjectId = /^[0-9a-fA-F]{24}$/.test(query.subjectId);
+      if (!isObjectId) {
+        throw new AppError('Invalid subjectId format.', 400, 'VALIDATION_ERROR');
+      }
+      if (!allowedSubjectMap.has(query.subjectId)) {
+        throw new AppError(
+          'Access denied. Requested subject does not belong to your target exam curriculum.',
+          403,
+          'FORBIDDEN_EXAM_CURRICULUM'
+        );
+      }
+      filterSubjectIds = [query.subjectId];
+    }
+
+    // Batch Query 2 — Load ALL active chapters for student's target exam (for exam-wide maxWeightage baseline)
+    const allExamChapters = await this.chapterRepo.find({
+      subjectId: { $in: Array.from(allowedSubjectMap.keys()) },
+      isActive: true,
+    });
+
+    // Calculate exam-wide maxWeightage baseline
+    let maxWeightage = 0;
+    allExamChapters.forEach((ch) => {
+      if (ch.weightage && ch.weightage > maxWeightage) {
+        maxWeightage = ch.weightage;
+      }
+    });
+
+    // Filter chapters matching target subject filter
+    const targetChapters = allExamChapters.filter((ch) =>
+      filterSubjectIds.includes(ch.subjectId.toString())
+    );
+
+    const chapterMap = new Map<string, IChapterDocument>();
+    targetChapters.forEach((ch) => chapterMap.set(ch._id.toString(), ch));
+
+    // Batch Query 3 — Load topics belonging to target chapters
+    const topics = await this.topicRepo.find({
+      chapterId: { $in: Array.from(chapterMap.keys()) },
+    });
+
+    // Calculate CPS and build recommended results
+    const recommendations: IRecommendedTopicResult[] = topics.map((topic) => {
+      const parentChapter = chapterMap.get(topic.chapterId.toString());
+      const parentSubject = parentChapter
+        ? allowedSubjectMap.get(parentChapter.subjectId.toString())
+        : undefined;
+
+      const chapterWeightage = parentChapter?.weightage || 0;
+      let importanceScore: number;
+
+      if (topic.importanceScore === undefined || topic.importanceScore === null) {
+        importanceScore = 5; // Safe legacy fallback for missing/null metadata
+      } else if (
+        typeof topic.importanceScore === 'number' &&
+        !isNaN(topic.importanceScore) &&
+        topic.importanceScore >= 1 &&
+        topic.importanceScore <= 10
+      ) {
+        importanceScore = topic.importanceScore;
+      } else {
+        throw new AppError(
+          `Invalid topic importanceScore '${topic.importanceScore}' in curriculum data. Must be a number between 1 and 10.`,
+          400,
+          'INVALID_CURRICULUM_DATA'
+        );
+      }
+
+      // 1. Weightage Component (0 - 50 points)
+      let weightageComponent = 0;
+      if (maxWeightage > 0 && chapterWeightage > 0) {
+        weightageComponent = (chapterWeightage / maxWeightage) * 50;
+      }
+
+      // 2. Importance Component (0 - 50 points)
+      const importanceComponent = (importanceScore / 10) * 50;
+
+      // 3. Final Score (0 - 100)
+      const priorityScore = Math.round(weightageComponent + importanceComponent);
+
+      // 4. Priority Level Thresholds
+      let priorityLevel: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
+      if (priorityScore >= 70) {
+        priorityLevel = 'HIGH';
+      } else if (priorityScore >= 45) {
+        priorityLevel = 'MEDIUM';
+      }
+
+      // 5. Transparent Explanation Generator
+      const explanation: string[] = [];
+      if (chapterWeightage > 0) {
+        explanation.push(
+          `High Exam Weightage: Belongs to Chapter '${parentChapter?.title || 'Chapter'}' (${chapterWeightage}% exam weightage).`
+        );
+      } else {
+        explanation.push('Exam Weightage: Not specified for this chapter.');
+      }
+
+      if (importanceScore >= 8) {
+        explanation.push(`High Curriculum Importance: Rated ${importanceScore}/10 in curriculum importance.`);
+      } else if (importanceScore >= 5) {
+        explanation.push(`Curriculum Importance: Rated ${importanceScore}/10 in curriculum importance.`);
+      } else {
+        explanation.push(`Curriculum Importance: Rated ${importanceScore}/10.`);
+      }
+
+      const diff = topic.difficultyLevel || 'Medium';
+      if (diff === 'Easy') {
+        explanation.push('Difficulty Level: Easy — Foundational concept.');
+      } else if (diff === 'Medium') {
+        explanation.push('Difficulty Level: Medium — Core concept.');
+      } else {
+        explanation.push('Difficulty Level: Hard — Advanced concept.');
+      }
+
+      return {
+        topicId: topic._id.toString(),
+        title: topic.title,
+        topicNumber: topic.topicNumber,
+        summary: topic.summary,
+        difficultyLevel: diff,
+        importanceScore,
+        chapterId: parentChapter ? parentChapter._id.toString() : '',
+        chapterTitle: parentChapter?.title || '',
+        chapterNumber: parentChapter?.chapterNumber || 0,
+        chapterWeightage,
+        subjectId: parentSubject ? parentSubject._id.toString() : '',
+        subjectName: parentSubject?.name || '',
+        subjectCode: parentSubject?.code || '',
+        priorityScore,
+        priorityLevel,
+        explanation,
+      };
+    });
+
+    // Deterministic Tie-Breaking Sort:
+    // 1. priorityScore DESC
+    // 2. importanceScore DESC
+    // 3. chapterNumber ASC
+    // 4. topicNumber ASC
+    recommendations.sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) {
+        return b.priorityScore - a.priorityScore;
+      }
+      if (b.importanceScore !== a.importanceScore) {
+        return b.importanceScore - a.importanceScore;
+      }
+      if (a.chapterNumber !== b.chapterNumber) {
+        return a.chapterNumber - b.chapterNumber;
+      }
+      return a.topicNumber - b.topicNumber;
+    });
+
+    return recommendations.slice(0, limit);
   }
 }
 

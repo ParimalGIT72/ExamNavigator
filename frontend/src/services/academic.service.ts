@@ -8,6 +8,7 @@ import {
   IChapter,
   ITopic,
   ILearningResource,
+  IRecommendedTopic,
 } from '@/types';
 
 function buildQueryString(params?: IAcademicQueryParams): string {
@@ -23,6 +24,17 @@ function buildQueryString(params?: IAcademicQueryParams): string {
 }
 
 export class AcademicService {
+  // --- Recommendations ---
+  public static async getRecommendedNextTopics(
+    params?: { limit?: number; subjectId?: string }
+  ): Promise<IApiResponse<IRecommendedTopic[]>> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.subjectId) query.append('subjectId', params.subjectId);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return ApiClient.get<IRecommendedTopic[]>(`/recommendations/next-topics${queryString}`);
+  }
+
   // --- Exam Services ---
   public static async getExams(params?: IAcademicQueryParams): Promise<IApiResponse<IPaginatedResult<IExam>>> {
     return ApiClient.get<IPaginatedResult<IExam>>(`/exams${buildQueryString(params)}`);

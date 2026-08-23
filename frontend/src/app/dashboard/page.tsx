@@ -11,11 +11,16 @@ import { SkeletonCard } from '@/components/ui/Skeleton';
 import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuthStore } from '@/store/useAuthStore';
-import { useSubjectsQuery } from '@/hooks/useAcademic';
+import { useSubjectsQuery, useRecommendedTopicsQuery } from '@/hooks/useAcademic';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { data, isLoading, isError, error, refetch } = useSubjectsQuery();
+  const {
+    data: recData,
+    isLoading: recLoading,
+    isError: recIsError,
+  } = useRecommendedTopicsQuery({ limit: 4 });
 
   const targetExam = user?.targetExam || 'JEE';
 
@@ -124,6 +129,98 @@ export default function DashboardPage() {
                 </div>
               </div>
             </Card>
+          </div>
+
+          {/* Phase 7D: Recommended Next Topics Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-brand-100 dark:bg-brand-950 text-brand-600 dark:text-brand-400 rounded-lg">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                    Recommended Next Topics
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Prioritized curriculum topics for <span className="font-bold text-brand-600 dark:text-brand-400">{targetExam}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {recLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            )}
+
+            {!recLoading && recData && recData.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {recData.map((rec) => (
+                  <Card
+                    key={rec.topicId}
+                    className="p-5 border-slate-200 dark:border-slate-800 hover:shadow-md transition-all bg-white dark:bg-slate-900 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="brand">{rec.subjectCode || rec.subjectName}</Badge>
+                          <Badge
+                            variant={
+                              rec.priorityLevel === 'HIGH'
+                                ? 'warning'
+                                : rec.priorityLevel === 'MEDIUM'
+                                ? 'info'
+                                : 'gray'
+                            }
+                          >
+                            {rec.priorityLevel} PRIORITY
+                          </Badge>
+                        </div>
+                        <span className="text-xs font-bold text-slate-400">
+                          CPS: {rec.priorityScore}/100
+                        </span>
+                      </div>
+
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1">
+                        {rec.title}
+                      </h3>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                        Chapter {rec.chapterNumber}: {rec.chapterTitle}
+                        {rec.chapterWeightage ? ` • ${rec.chapterWeightage}% Weightage` : ''}
+                      </p>
+
+                      {/* Transparent Explanation Block */}
+                      <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Why Recommended:
+                        </p>
+                        {rec.explanation.map((exp, idx) => (
+                          <p key={idx} className="text-xs text-slate-600 dark:text-slate-300 leading-normal">
+                            • {exp}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">
+                        Difficulty: <span className="font-bold text-slate-700 dark:text-slate-300">{rec.difficultyLevel}</span>
+                      </span>
+                      <Link
+                        href={`/topics/${rec.topicId}`}
+                        className="inline-flex items-center text-xs font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700"
+                      >
+                        Study Topic <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                      </Link>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Dynamic "My Subjects" Section */}

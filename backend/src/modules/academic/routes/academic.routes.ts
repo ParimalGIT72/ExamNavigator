@@ -8,6 +8,7 @@ import {
 import { examController } from '../controllers/exam.controller';
 import { authenticateJwt } from '../../../middleware/auth.middleware';
 import { requireRole } from '../../../middleware/role.middleware';
+import { attachAcademicContext } from '../../../middleware/academic-context.middleware';
 import {
   validateRequest,
   createSubjectSchema,
@@ -55,10 +56,19 @@ router.get(
   examController.getExamById
 );
 
+// Recommendations
+router.get(
+  '/recommendations/next-topics',
+  authenticateJwt,
+  attachAcademicContext,
+  subjectController.getRecommendedNextTopics
+);
+
 // Subjects
 router.get(
   '/subjects',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ query: subjectQuerySchema }),
   subjectController.getSubjects
 );
@@ -66,6 +76,7 @@ router.get(
 router.get(
   '/subjects/:subjectId',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: subjectIdParamSchema }),
   subjectController.getSubjectById
 );
@@ -74,6 +85,7 @@ router.get(
 router.get(
   '/subjects/:subjectId/chapters',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: subjectIdParamSchema, query: chapterQuerySchema }),
   chapterController.getChapters
 );
@@ -81,6 +93,7 @@ router.get(
 router.get(
   '/chapters/:chapterId',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: chapterIdParamSchema }),
   chapterController.getChapterById
 );
@@ -88,6 +101,7 @@ router.get(
 router.get(
   '/chapters',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ query: chapterQuerySchema }),
   chapterController.getChapters
 );
@@ -96,6 +110,7 @@ router.get(
 router.get(
   '/chapters/:chapterId/topics',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: chapterIdParamSchema, query: topicQuerySchema }),
   topicController.getTopics
 );
@@ -103,6 +118,7 @@ router.get(
 router.get(
   '/topics/:topicId',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: topicIdParamSchema }),
   topicController.getTopicById
 );
@@ -110,6 +126,7 @@ router.get(
 router.get(
   '/topics',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ query: topicQuerySchema }),
   topicController.getTopics
 );
@@ -118,6 +135,7 @@ router.get(
 router.get(
   '/topics/:topicId/resources',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: topicIdParamSchema, query: resourceQuerySchema }),
   learningResourceController.getResources
 );
@@ -125,6 +143,7 @@ router.get(
 router.get(
   '/resources/:resourceId',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ params: resourceIdParamSchema }),
   learningResourceController.getResourceById
 );
@@ -132,6 +151,7 @@ router.get(
 router.get(
   '/resources',
   authenticateJwt,
+  attachAcademicContext,
   validateRequest({ query: resourceQuerySchema }),
   learningResourceController.getResources
 );

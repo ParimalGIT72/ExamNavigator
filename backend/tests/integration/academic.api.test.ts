@@ -320,4 +320,138 @@ describe('Academic Module Integration Tests', () => {
       expect(res.body.success).toBe(true);
     });
   });
+
+  describe('Phase 7D — Exam Isolation & Security Regression Suite', () => {
+    const neetSubjectId = '507f1f77bcf86cd799439091';
+    const neetChapterId = '507f1f77bcf86cd799439092';
+    const neetTopicId = '507f1f77bcf86cd799439093';
+    const neetResourceId = '507f1f77bcf86cd799439094';
+
+    const neetSubject: any = {
+      _id: neetSubjectId,
+      name: 'Biology',
+      code: 'NEET_BIO',
+      examType: 'NEET',
+      examId: '507f1f77bcf86cd799439088',
+      isActive: true,
+    };
+
+    const neetChapter: any = {
+      _id: neetChapterId,
+      subjectId: neetSubjectId,
+      title: 'Botany',
+      chapterNumber: 1,
+      isActive: true,
+    };
+
+    const neetTopic: any = {
+      _id: neetTopicId,
+      chapterId: neetChapterId,
+      subjectId: neetSubjectId,
+      title: 'Plant Cell Structure',
+      topicNumber: 1,
+    };
+
+    const neetResource: any = {
+      _id: neetResourceId,
+      topicId: neetTopicId,
+      chapterId: neetChapterId,
+      subjectId: neetSubjectId,
+      title: 'Plant Anatomy Notes',
+      resourceType: 'PDF',
+    };
+
+    beforeEach(() => {
+      // Mock NEET entities alongside JEE entities
+      jest.spyOn(subjectRepository, 'findById').mockImplementation(async (id: string) => {
+        if (id === sampleSubjectId) return mockSubject;
+        if (id === neetSubjectId) return neetSubject;
+        return null;
+      });
+
+      jest.spyOn(chapterRepository, 'findById').mockImplementation(async (id: string) => {
+        if (id === sampleChapterId) return mockChapter;
+        if (id === neetChapterId) return neetChapter;
+        return null;
+      });
+
+      jest.spyOn(topicRepository, 'findById').mockImplementation(async (id: string) => {
+        if (id === sampleTopicId) return mockTopic;
+        if (id === neetTopicId) return neetTopic;
+        return null;
+      });
+
+      jest.spyOn(learningResourceRepository, 'findById').mockImplementation(async (id: string) => {
+        if (id === sampleResourceId) return mockResource;
+        if (id === neetResourceId) return neetResource;
+        return null;
+      });
+    });
+
+    it('1. Server must ignore client ?examType=NEET query override for JEE student', async () => {
+      const res = await request(app)
+        .get('/api/v1/subjects?examType=NEET')
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      // Verify repository was called with student's target exam (JEE), ignoring client parameter
+      expect(subjectRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          $or: expect.arrayContaining([{ examId: '507f1f77bcf86cd799439099' }, { examType: 'JEE' }]),
+        }),
+        expect.anything()
+      );
+    });
+
+    it('2. Cross-exam direct Subject ID access must return 403 FORBIDDEN_EXAM_CURRICULUM', async () => {
+      const res = await request(app)
+        .get(`/api/v1/subjects/${neetSubjectId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe('FORBIDDEN_EXAM_CURRICULUM');
+    });
+
+    it('3. Cross-exam direct Chapter ID access must return 403 FORBIDDEN_EXAM_CURRICULUM', async () => {
+      const res = await request(app)
+        .get(`/api/v1/chapters/${neetChapterId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe('FORBIDDEN_EXAM_CURRICULUM');
+    });
+
+    it('4. Cross-exam direct Topic ID access must return 403 FORBIDDEN_EXAM_CURRICULUM', async () => {
+      const res = await request(app)
+        .get(`/api/v1/topics/${neetTopicId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe('FORBIDDEN_EXAM_CURRICULUM');
+    });
+
+    it('5. Cross-exam direct Resource ID access must return 403 FORBIDDEN_EXAM_CURRICULUM', async () => {
+      const res = await request(app)
+        .get(`/api/v1/resources/${neetResourceId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+      expect(res.body.errorCode).toBe('FORBIDDEN_EXAM_CURRICULUM');
+    });
+
+    it('6. AttachAcademicContext middleware resolves targetExam once and attaches to request', async () => {
+      const res = await request(app)
+        .get(`/api/v1/subjects/${sampleSubjectId}`)
+        .set('Authorization', `Bearer ${studentToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(userProfileRepository.findByUserId).toHaveBeenCalledTimes(1);
+    });
+  });
 });

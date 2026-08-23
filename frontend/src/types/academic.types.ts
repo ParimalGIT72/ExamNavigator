@@ -106,3 +106,29 @@ export interface IAcademicQueryParams {
   resourceType?: ResourceType;
   isActive?: boolean;
 }
+
+export type PriorityLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface IRecommendedTopic {
+  topicId: string;
+  title: string;
+  topicNumber: number;
+  summary?: string;
+  difficultyLevel: DifficultyLevel;
+  importanceScore: number;
+  chapterId: string;
+  chapterTitle: string;
+  chapterNumber: number;
+  chapterWeightage?: number;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  priorityScore: number;
+  priorityLevel: PriorityLevel;
+  explanation: string[];
+}
+
+export interface IRecommendationQueryParams {
+  limit?: number;
+  subjectId?: string;
+}
