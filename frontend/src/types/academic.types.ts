@@ -152,3 +152,18 @@ export interface IProgressSummary {
   overallCompletionPercentage: number;
 }
 
+export interface ISubjectProgressAnalytics {
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  totalTopics: number;
+  completedTopics: number;
+  inProgressTopics: number;
+  unstartedTopics: number;
+  completionPercentage: number;
+}
+
+export interface IProgressAnalyticsResponse {
+  overall: IProgressSummary;
+  bySubject: ISubjectProgressAnalytics[];
+}

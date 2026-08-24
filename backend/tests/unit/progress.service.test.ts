@@ -409,13 +409,13 @@ describe('Phase 8A — ProgressService Unit Tests', () => {
     ]);
 
     mockChapterRepo.find.mockResolvedValue([
-      { _id: new mongoose.Types.ObjectId(chapter1Id), isActive: true },
+      { _id: new mongoose.Types.ObjectId(chapter1Id), subjectId: new mongoose.Types.ObjectId(subject1Id), isActive: true },
     ]);
 
     mockTopicRepo.find.mockResolvedValue([
-      { _id: new mongoose.Types.ObjectId(topic1Id) },
-      { _id: new mongoose.Types.ObjectId(topic2Id) },
-      { _id: new mongoose.Types.ObjectId(topic3Id) },
+      { _id: new mongoose.Types.ObjectId(topic1Id), chapterId: new mongoose.Types.ObjectId(chapter1Id), subjectId: new mongoose.Types.ObjectId(subject1Id) },
+      { _id: new mongoose.Types.ObjectId(topic2Id), chapterId: new mongoose.Types.ObjectId(chapter1Id), subjectId: new mongoose.Types.ObjectId(subject1Id) },
+      { _id: new mongoose.Types.ObjectId(topic3Id), chapterId: new mongoose.Types.ObjectId(chapter1Id), subjectId: new mongoose.Types.ObjectId(subject1Id) },
     ]);
 
     mockProgressRepo.find.mockResolvedValue([
@@ -455,12 +455,12 @@ describe('Phase 8A — ProgressService Unit Tests', () => {
 
     // Only one active chapter (the deactivated chapter is NOT returned)
     mockChapterRepo.find.mockResolvedValue([
-      { _id: new mongoose.Types.ObjectId(activeChapterId), isActive: true },
+      { _id: new mongoose.Types.ObjectId(activeChapterId), subjectId: new mongoose.Types.ObjectId(subject1Id), isActive: true },
     ]);
 
     // Only topics from active chapters
     mockTopicRepo.find.mockResolvedValue([
-      { _id: new mongoose.Types.ObjectId(activeTopic1Id) },
+      { _id: new mongoose.Types.ObjectId(activeTopic1Id), chapterId: new mongoose.Types.ObjectId(activeChapterId), subjectId: new mongoose.Types.ObjectId(subject1Id) },
     ]);
 
     // Progress filter $in only contains active topic IDs, so stale records are excluded

@@ -78,6 +78,24 @@ export class ProgressController {
       next(error);
     }
   };
+
+  /**
+   * GET /api/v1/progress/analytics
+   */
+  public getProgressAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userContext = getUserContext(req);
+
+      const result = await this.progressSvc.getProgressAnalytics(
+        userContext.userId,
+        userContext
+      );
+
+      ApiResponse.success(res, 'Progress analytics retrieved successfully.', result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export const progressController = new ProgressController();

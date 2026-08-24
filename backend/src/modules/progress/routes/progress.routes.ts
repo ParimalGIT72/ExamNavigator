@@ -18,6 +18,14 @@ router.get(
   progressController.getProgressSummary
 );
 
+// GET /api/v1/progress/analytics — must be defined before :topicId param route
+router.get(
+  '/progress/analytics',
+  authenticateJwt,
+  attachAcademicContext,
+  progressController.getProgressAnalytics
+);
+
 // GET /api/v1/progress/topics/:topicId
 router.get(
   '/progress/topics/:topicId',

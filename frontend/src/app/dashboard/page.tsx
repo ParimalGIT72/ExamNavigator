@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, Bell, Layers, Sparkles, Bot, RefreshCw } from 'lucide-react';
+import { BookOpen, ChevronRight, Bell, Layers, Sparkles, Bot, RefreshCw, TrendingUp, CheckCircle2, Clock, Circle } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { StudentLayout } from '@/components/layout/StudentLayout';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSubjectsQuery, useRecommendedTopicsQuery } from '@/hooks/useAcademic';
+import { useProgressAnalyticsQuery } from '@/hooks/useProgress';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -19,8 +20,11 @@ export default function DashboardPage() {
   const {
     data: recData,
     isLoading: recLoading,
-    isError: recIsError,
   } = useRecommendedTopicsQuery({ limit: 4 });
+  const {
+    data: analyticsData,
+    isLoading: analyticsLoading,
+  } = useProgressAnalyticsQuery();
 
   const targetExam = user?.targetExam || 'JEE';
 
@@ -219,6 +223,130 @@ export default function DashboardPage() {
                     </div>
                   </Card>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Phase 8B: Progress Analytics Overview & Breakdown */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                    Progress & Analytics
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Syllabus coverage across <span className="font-bold text-indigo-600 dark:text-indigo-400">{targetExam}</span> subjects
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {analyticsLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <SkeletonCard key={i} />
+                ))}
+              </div>
+            )}
+
+            {!analyticsLoading && analyticsData && (
+              <div className="space-y-6">
+                {/* Overall Summary Metrics Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <Card className="p-4 border-slate-200 bg-white dark:bg-slate-900 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overall Completion</span>
+                      <TrendingUp className="h-4 w-4 text-brand-600" />
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
+                        {analyticsData.overall.overallCompletionPercentage}%
+                      </span>
+                      <div className="w-full bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                        <div
+                          className="bg-brand-600 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${analyticsData.overall.overallCompletionPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="p-4 border-slate-200 bg-white dark:bg-slate-900 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed</span>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                        {analyticsData.overall.completedTopics}
+                      </span>
+                      <span className="text-xs text-slate-500 ml-1">/ {analyticsData.overall.totalTopics} topics</span>
+                    </div>
+                  </Card>
+
+                  <Card className="p-4 border-slate-200 bg-white dark:bg-slate-900 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">In Progress</span>
+                      <Clock className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                        {analyticsData.overall.inProgressTopics}
+                      </span>
+                      <span className="text-xs text-slate-500 ml-1">topics</span>
+                    </div>
+                  </Card>
+
+                  <Card className="p-4 border-slate-200 bg-white dark:bg-slate-900 flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Unstarted</span>
+                      <Circle className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <div className="mt-2">
+                      <span className="text-2xl font-black text-slate-700 dark:text-slate-300">
+                        {analyticsData.overall.unstartedTopics}
+                      </span>
+                      <span className="text-xs text-slate-500 ml-1">topics</span>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Per-Subject Progress Breakdown Cards */}
+                {analyticsData.bySubject && analyticsData.bySubject.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {analyticsData.bySubject.map((sbj) => (
+                      <Card key={sbj.subjectId} className="p-4 border-slate-200 bg-white dark:bg-slate-900 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="brand">{sbj.subjectCode}</Badge>
+                            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">{sbj.subjectName}</h3>
+                          </div>
+                          <span className="text-xs font-extrabold text-brand-600 dark:text-brand-400">
+                            {sbj.completionPercentage}%
+                          </span>
+                        </div>
+
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-brand-600 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${sbj.completionPercentage}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+                          <span>{sbj.completedTopics} of {sbj.totalTopics} completed</span>
+                          {sbj.inProgressTopics > 0 && (
+                            <span className="text-amber-600 font-medium">{sbj.inProgressTopics} in progress</span>
+                          )}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

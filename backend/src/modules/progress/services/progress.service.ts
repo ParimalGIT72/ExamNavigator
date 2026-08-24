@@ -32,6 +32,22 @@ export interface IProgressSummary {
   overallCompletionPercentage: number;
 }
 
+export interface ISubjectProgressAnalytics {
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  totalTopics: number;
+  completedTopics: number;
+  inProgressTopics: number;
+  unstartedTopics: number;
+  completionPercentage: number;
+}
+
+export interface IProgressAnalyticsResponse {
+  overall: IProgressSummary;
+  bySubject: ISubjectProgressAnalytics[];
+}
+
 export class ProgressService {
   constructor(
     private progressRepo: UserTopicProgressRepository = userTopicProgressRepository,
@@ -108,6 +124,88 @@ export class ProgressService {
     return {
       topicId: topic._id.toString(),
       subjectId: subject._id.toString(),
+    };
+  }
+
+  /**
+   * Shared Primitive: Loads active target exam curriculum and user progress records.
+   * Executes 4 batch queries total.
+   */
+  private async loadActiveProgressContext(
+    userId: string,
+    userContext: IUserContext
+  ) {
+    const targetExam = userContext.targetExam;
+    if (!targetExam) {
+      throw new AppError(
+        'Target exam context is required for progress operations.',
+        400,
+        'MISSING_TARGET_EXAM'
+      );
+    }
+
+    // Batch Query 1 — Active subjects scoped to student's target exam
+    const allowedSubjects = await this.subjectRepo.find({
+      $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
+      isActive: true,
+    });
+
+    const allowedSubjectIds = allowedSubjects.map((s) => s._id.toString());
+
+    if (allowedSubjectIds.length === 0) {
+      return {
+        allowedSubjects: [],
+        activeChapters: [],
+        activeTopics: [],
+        progressDocs: [],
+      };
+    }
+
+    // Batch Query 2 — Active chapters belonging to those subjects
+    const activeChapters = await this.chapterRepo.find({
+      subjectId: { $in: allowedSubjectIds },
+      isActive: true,
+    });
+
+    const activeChapterIds = activeChapters.map((ch) => ch._id.toString());
+
+    if (activeChapterIds.length === 0) {
+      return {
+        allowedSubjects,
+        activeChapters: [],
+        activeTopics: [],
+        progressDocs: [],
+      };
+    }
+
+    // Batch Query 3 — Topics belonging to active chapters
+    // (No isActive filter — TopicModel has no isActive field)
+    const activeTopics = await this.topicRepo.find({
+      chapterId: { $in: activeChapterIds },
+    });
+
+    const activeTopicIds = activeTopics.map((t) => t._id.toString());
+
+    if (activeTopicIds.length === 0) {
+      return {
+        allowedSubjects,
+        activeChapters,
+        activeTopics: [],
+        progressDocs: [],
+      };
+    }
+
+    // Batch Query 4 — User progress records for active topics only
+    const progressDocs = await this.progressRepo.find({
+      userId,
+      topicId: { $in: activeTopicIds },
+    });
+
+    return {
+      allowedSubjects,
+      activeChapters,
+      activeTopics,
+      progressDocs,
     };
   }
 
@@ -222,99 +320,124 @@ export class ProgressService {
   }
 
   /**
+   * GET /api/v1/progress/analytics
+   * Computes overall and per-subject progress analytics using shared 4-batch context.
+   */
+  public async getProgressAnalytics(
+    userId: string,
+    userContext: IUserContext
+  ): Promise<IProgressAnalyticsResponse> {
+    const { allowedSubjects, activeChapters, activeTopics, progressDocs } =
+      await this.loadActiveProgressContext(userId, userContext);
+
+    // Build lookup maps for fast in-memory aggregation
+    const progressMap = new Map<string, TopicProgressStatus>();
+    progressDocs.forEach((p) => progressMap.set(p.topicId.toString(), p.status));
+
+    // Chapter ID -> Subject ID string map
+    const chapterToSubjectMap = new Map<string, string>();
+    activeChapters.forEach((ch) => {
+      if (ch._id) {
+        const subId = ch.subjectId
+          ? ch.subjectId.toString()
+          : allowedSubjects.length === 1
+          ? allowedSubjects[0]._id.toString()
+          : '';
+        if (subId) {
+          chapterToSubjectMap.set(ch._id.toString(), subId);
+        }
+      }
+    });
+
+    // Subject ID -> Array of Topic documents map
+    const subjectTopicsMap = new Map<string, any[]>();
+    allowedSubjects.forEach((s) => subjectTopicsMap.set(s._id.toString(), []));
+
+    activeTopics.forEach((t) => {
+      const subjectIdStr = t.subjectId
+        ? t.subjectId.toString()
+        : t.chapterId
+        ? chapterToSubjectMap.get(t.chapterId.toString())
+        : allowedSubjects.length === 1
+        ? allowedSubjects[0]._id.toString()
+        : undefined;
+
+      if (subjectIdStr && subjectTopicsMap.has(subjectIdStr)) {
+        subjectTopicsMap.get(subjectIdStr)!.push(t);
+      }
+    });
+
+    let overallCompleted = 0;
+    let overallInProgress = 0;
+    const totalActiveTopicsCount = activeTopics.length;
+
+    const bySubject: ISubjectProgressAnalytics[] = allowedSubjects.map((subject) => {
+      const subjectIdStr = subject._id.toString();
+      const topics = subjectTopicsMap.get(subjectIdStr) || [];
+      const totalTopics = topics.length;
+
+      let completedTopics = 0;
+      let inProgressTopics = 0;
+
+      topics.forEach((t) => {
+        const st = progressMap.get(t._id.toString());
+        if (st === 'COMPLETED') {
+          completedTopics++;
+        } else if (st === 'IN_PROGRESS') {
+          inProgressTopics++;
+        }
+      });
+
+      overallCompleted += completedTopics;
+      overallInProgress += inProgressTopics;
+
+      const unstartedTopics = totalTopics - completedTopics - inProgressTopics;
+      const completionPercentage =
+        totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
+
+      return {
+        subjectId: subjectIdStr,
+        subjectName: subject.name,
+        subjectCode: subject.code,
+        totalTopics,
+        completedTopics,
+        inProgressTopics,
+        unstartedTopics,
+        completionPercentage,
+      };
+    });
+
+    const overallUnstarted = totalActiveTopicsCount - overallCompleted - overallInProgress;
+    const overallCompletionPercentage =
+      totalActiveTopicsCount > 0
+        ? Math.round((overallCompleted / totalActiveTopicsCount) * 100)
+        : 0;
+
+    const overall: IProgressSummary = {
+      totalSubjects: allowedSubjects.length,
+      totalTopics: totalActiveTopicsCount,
+      completedTopics: overallCompleted,
+      inProgressTopics: overallInProgress,
+      unstartedTopics: overallUnstarted,
+      overallCompletionPercentage,
+    };
+
+    return {
+      overall,
+      bySubject,
+    };
+  }
+
+  /**
    * GET /api/v1/progress/summary
-   * Computes active curriculum aggregation using 4 batch queries.
+   * Preserves Phase 8A compatibility by delegating to getProgressAnalytics.
    */
   public async getProgressSummary(
     userId: string,
     userContext: IUserContext
   ): Promise<IProgressSummary> {
-    const targetExam = userContext.targetExam;
-    if (!targetExam) {
-      throw new AppError(
-        'Target exam context is required for progress summary.',
-        400,
-        'MISSING_TARGET_EXAM'
-      );
-    }
-
-    // Batch Query 1 — Active subjects scoped to student's target exam
-    const allowedSubjects = await this.subjectRepo.find({
-      $or: [{ examId: targetExam.examId }, { examType: targetExam.examCode }],
-      isActive: true,
-    });
-
-    const allowedSubjectIds = allowedSubjects.map((s) => s._id.toString());
-
-    if (allowedSubjectIds.length === 0) {
-      return {
-        totalSubjects: 0,
-        totalTopics: 0,
-        completedTopics: 0,
-        inProgressTopics: 0,
-        unstartedTopics: 0,
-        overallCompletionPercentage: 0,
-      };
-    }
-
-    // Batch Query 2 — Active chapters belonging to those subjects
-    const activeChapters = await this.chapterRepo.find({
-      subjectId: { $in: allowedSubjectIds },
-      isActive: true,
-    });
-
-    const activeChapterIds = activeChapters.map((ch) => ch._id.toString());
-
-    if (activeChapterIds.length === 0) {
-      return {
-        totalSubjects: allowedSubjectIds.length,
-        totalTopics: 0,
-        completedTopics: 0,
-        inProgressTopics: 0,
-        unstartedTopics: 0,
-        overallCompletionPercentage: 0,
-      };
-    }
-
-    // Batch Query 3 — Topics belonging to those active chapters
-    // (No isActive filter — TopicModel has no isActive field)
-    const activeTopics = await this.topicRepo.find({
-      chapterId: { $in: activeChapterIds },
-    });
-
-    const activeTopicIds = activeTopics.map((t) => t._id.toString());
-    const totalTopics = activeTopicIds.length;
-
-    if (totalTopics === 0) {
-      return {
-        totalSubjects: allowedSubjectIds.length,
-        totalTopics: 0,
-        completedTopics: 0,
-        inProgressTopics: 0,
-        unstartedTopics: 0,
-        overallCompletionPercentage: 0,
-      };
-    }
-
-    // Batch Query 4 — User progress records for active topics only
-    const progressDocs = await this.progressRepo.find({
-      userId,
-      topicId: { $in: activeTopicIds },
-    });
-
-    const completedTopics = progressDocs.filter((p) => p.status === 'COMPLETED').length;
-    const inProgressTopics = progressDocs.filter((p) => p.status === 'IN_PROGRESS').length;
-    const unstartedTopics = totalTopics - completedTopics - inProgressTopics;
-    const overallCompletionPercentage = Math.round((completedTopics / totalTopics) * 100);
-
-    return {
-      totalSubjects: allowedSubjectIds.length,
-      totalTopics,
-      completedTopics,
-      inProgressTopics,
-      unstartedTopics,
-      overallCompletionPercentage,
-    };
+    const analytics = await this.getProgressAnalytics(userId, userContext);
+    return analytics.overall;
   }
 }
 
