@@ -96,6 +96,24 @@ export class ProgressController {
       next(error);
     }
   };
+
+  /**
+   * GET /api/v1/progress/activity
+   */
+  public getLearningActivity = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userContext = getUserContext(req);
+
+      const result = await this.progressSvc.getLearningActivity(
+        userContext.userId,
+        userContext
+      );
+
+      ApiResponse.success(res, 'Learning activity and consistency retrieved successfully.', result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }
 
 export const progressController = new ProgressController();

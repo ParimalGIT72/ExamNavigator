@@ -8,6 +8,7 @@ import {
   topicRepository,
 } from '../../src/modules/academic/repositories/academic.repository';
 import { userTopicProgressRepository } from '../../src/modules/progress/repositories/progress.repository';
+import { learningActivityEventRepository } from '../../src/modules/progress/repositories/learning-activity-event.repository';
 import { userProfileRepository } from '../../src/modules/user/repositories/user-profile.repository';
 import { ExamModel } from '../../src/modules/academic/models/exam.model';
 
@@ -120,6 +121,9 @@ describe('Phase 8A — Progress API Integration Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    // Mock learning activity event creation to prevent un-connected Mongoose model query buffering
+    jest.spyOn(learningActivityEventRepository, 'create').mockResolvedValue({} as any);
 
     // Mock UserProfile
     jest.spyOn(userProfileRepository, 'findByUserId').mockImplementation(async (uid: string) => {

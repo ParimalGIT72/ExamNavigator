@@ -43,6 +43,20 @@ export const useProgressAnalyticsQuery = () => {
   });
 };
 
+export const useLearningActivityQuery = () => {
+  return useQuery({
+    queryKey: ['progress-activity'],
+    queryFn: async () => {
+      const response = await ProgressService.getLearningActivity();
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Failed to fetch learning activity');
+      }
+      return response.data;
+    },
+    staleTime: 30 * 1000,
+  });
+};
+
 export const useUpdateTopicProgressMutation = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -63,6 +77,7 @@ export const useUpdateTopicProgressMutation = () => {
       queryClient.invalidateQueries({ queryKey: ['topic-progress', variables.topicId] });
       queryClient.invalidateQueries({ queryKey: ['progress-summary'] });
       queryClient.invalidateQueries({ queryKey: ['progress-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['progress-activity'] });
     },
   });
 };

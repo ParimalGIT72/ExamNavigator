@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronRight, Bell, Layers, Sparkles, Bot, RefreshCw, TrendingUp, CheckCircle2, Clock, Circle } from 'lucide-react';
+import { BookOpen, ChevronRight, Bell, Layers, Sparkles, Bot, RefreshCw, TrendingUp, CheckCircle2, Clock, Circle, Zap, History, CalendarCheck } from 'lucide-react';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { StudentLayout } from '@/components/layout/StudentLayout';
 import { Card } from '@/components/ui/Card';
@@ -12,7 +12,7 @@ import { Alert } from '@/components/ui/Alert';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSubjectsQuery, useRecommendedTopicsQuery } from '@/hooks/useAcademic';
-import { useProgressAnalyticsQuery } from '@/hooks/useProgress';
+import { useProgressAnalyticsQuery, useLearningActivityQuery } from '@/hooks/useProgress';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -25,6 +25,10 @@ export default function DashboardPage() {
     data: analyticsData,
     isLoading: analyticsLoading,
   } = useProgressAnalyticsQuery();
+  const {
+    data: activityData,
+    isLoading: activityLoading,
+  } = useLearningActivityQuery();
 
   const targetExam = user?.targetExam || 'JEE';
 
@@ -350,6 +354,151 @@ export default function DashboardPage() {
               </div>
             )}
           </div>
+
+          {/* Phase 8C: Learning Consistency & Recent Activity */}
+          <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-lg">
+                    <Zap className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
+                      Learning Consistency & Recent Activity
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Daily active learning streak (UTC-based) and historical topic state transitions
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {activityLoading && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <SkeletonCard key={i} />
+                  ))}
+                </div>
+              )}
+
+              {!activityLoading && activityData && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Metrics Column */}
+                  <div className="space-y-4 lg:col-span-1">
+                    {/* Streak Metric Card */}
+                    <Card className="p-5 border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 flex items-center space-x-4">
+                      <div className="p-3.5 bg-amber-500 text-white rounded-2xl shadow-md">
+                        <Zap className="h-7 w-7" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                          Current Streak
+                        </span>
+                        <div className="flex items-baseline space-x-1.5 mt-0.5">
+                          <span className="text-3xl font-black text-amber-900 dark:text-amber-100">
+                            {activityData.metrics.currentStreak}
+                          </span>
+                          <span className="text-sm font-bold text-amber-700 dark:text-amber-300">
+                            {activityData.metrics.currentStreak === 1 ? 'day' : 'days'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+                          Consecutive UTC days with recorded progress
+                        </p>
+                      </div>
+                    </Card>
+
+                    {/* Total Active Days Metric Card */}
+                    <Card className="p-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center space-x-4">
+                      <div className="p-3 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                        <CalendarCheck className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                          Total Active Days
+                        </span>
+                        <div className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">
+                          {activityData.metrics.totalActiveDays}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Distinct calendar days logged
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Recent Activity Timeline Column */}
+                  <div className="lg:col-span-2">
+                    <Card className="p-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 h-full flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+                          <div className="flex items-center space-x-2">
+                            <History className="h-4 w-4 text-slate-400" />
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                              Recent Activity Timeline
+                            </h3>
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {activityData.metrics.totalActivityEvents} recorded state events
+                          </span>
+                        </div>
+
+                        {activityData.recentActivity.length === 0 ? (
+                          <p className="text-xs text-slate-500 py-6 text-center">
+                            No recorded learning transitions yet. Mark a topic IN_PROGRESS or COMPLETED to build your streak!
+                          </p>
+                        ) : (
+                          <div className="space-y-3">
+                            {activityData.recentActivity.slice(0, 5).map((item) => (
+                              <div
+                                key={item.eventId}
+                                className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800"
+                              >
+                                <div className="flex items-center space-x-3 min-w-0">
+                                  <Badge variant="brand">{item.subjectCode}</Badge>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                                      {item.topicTitle}
+                                    </p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                      {item.subjectName}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-3 text-right shrink-0">
+                                  <Badge
+                                    variant={
+                                      item.eventType === 'TOPIC_COMPLETED'
+                                        ? 'success'
+                                        : item.eventType === 'TOPIC_STARTED'
+                                        ? 'info'
+                                        : 'warning'
+                                    }
+                                  >
+                                    {item.eventType === 'TOPIC_COMPLETED'
+                                      ? 'Completed'
+                                      : item.eventType === 'TOPIC_STARTED'
+                                      ? 'Started'
+                                      : 'Resumed'}
+                                  </Badge>
+                                  <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                                    {new Date(item.occurredAt).toLocaleDateString(undefined, {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </div>
 
           {/* Dynamic "My Subjects" Section */}
           <div className="space-y-4">

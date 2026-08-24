@@ -1,8 +1,14 @@
+import mongoose, { ClientSession } from 'mongoose';
 import {
   UserTopicProgressRepository,
   userTopicProgressRepository,
 } from '../repositories/progress.repository';
+import {
+  LearningActivityEventRepository,
+  learningActivityEventRepository,
+} from '../repositories/learning-activity-event.repository';
 import { TopicProgressStatus } from '../models/user-topic-progress.model';
+import { ActivityEventType } from '../models/learning-activity-event.model';
 import {
   SubjectRepository,
   ChapterRepository,
@@ -13,6 +19,8 @@ import {
 } from '../../academic/repositories/academic.repository';
 import { IUserContext } from '../../academic/services/academic.service';
 import { AppError } from '../../../utils/app-error';
+import { withTransaction } from '../../../utils/db-utils';
+import { logger } from '../../../utils/logger';
 
 /** Effective status including the virtual NOT_STARTED state */
 export type EffectiveProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -48,12 +56,36 @@ export interface IProgressAnalyticsResponse {
   bySubject: ISubjectProgressAnalytics[];
 }
 
+export interface ILearningActivityMetrics {
+  currentStreak: number;
+  totalActiveDays: number;
+  totalActivityEvents: number;
+}
+
+export interface ILearningActivityItem {
+  eventId: string;
+  topicId: string;
+  topicTitle: string;
+  topicNumber: number;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  eventType: ActivityEventType;
+  occurredAt: string;
+}
+
+export interface ILearningActivityResponse {
+  metrics: ILearningActivityMetrics;
+  recentActivity: ILearningActivityItem[];
+}
+
 export class ProgressService {
   constructor(
     private progressRepo: UserTopicProgressRepository = userTopicProgressRepository,
     private subjectRepo: SubjectRepository = subjectRepository,
     private chapterRepo: ChapterRepository = chapterRepository,
-    private topicRepo: TopicRepository = topicRepository
+    private topicRepo: TopicRepository = topicRepository,
+    private eventRepo: LearningActivityEventRepository = learningActivityEventRepository
   ) {}
 
   /**
@@ -179,7 +211,6 @@ export class ProgressService {
     }
 
     // Batch Query 3 — Topics belonging to active chapters
-    // (No isActive filter — TopicModel has no isActive field)
     const activeTopics = await this.topicRepo.find({
       chapterId: { $in: activeChapterIds },
     });
@@ -210,8 +241,90 @@ export class ProgressService {
   }
 
   /**
+   * Internal helper: Executes a state mutation and event creation logic with session propagation.
+   */
+  private async executeProgressUpdateInternal(
+    userId: string,
+    validated: { topicId: string; subjectId: string },
+    existing: any,
+    requestedStatus: EffectiveProgressStatus,
+    eventTypeToEmit: ActivityEventType | null,
+    now: Date,
+    session?: ClientSession
+  ): Promise<ITopicProgressResponse> {
+    let responseDoc: { status: EffectiveProgressStatus; lastProgressUpdatedAt: string | null };
+
+    // Transition to NOT_STARTED → delete document (No event emitted for resets)
+    if (requestedStatus === 'NOT_STARTED') {
+      if (existing) {
+        await this.progressRepo.deleteOne(userId, validated.topicId, session);
+      }
+      return {
+        topicId: validated.topicId,
+        status: 'NOT_STARTED',
+        lastProgressUpdatedAt: null,
+      };
+    }
+
+    if (!existing) {
+      // Transition from NOT_STARTED → create document
+      const created = await this.progressRepo.create(
+        {
+          userId,
+          topicId: validated.topicId,
+          subjectId: validated.subjectId,
+          status: requestedStatus as TopicProgressStatus,
+          lastProgressUpdatedAt: now,
+        },
+        session
+      );
+      responseDoc = {
+        status: created.status,
+        lastProgressUpdatedAt: created.lastProgressUpdatedAt.toISOString(),
+      };
+    } else {
+      // Transition between IN_PROGRESS ↔ COMPLETED → update document
+      const updated = await this.progressRepo.updateStatus(
+        userId,
+        validated.topicId,
+        requestedStatus as TopicProgressStatus,
+        now,
+        session
+      );
+
+      if (!updated) {
+        throw new AppError('Failed to update progress.', 500, 'UPDATE_FAILED');
+      }
+      responseDoc = {
+        status: updated.status,
+        lastProgressUpdatedAt: updated.lastProgressUpdatedAt.toISOString(),
+      };
+    }
+
+    // Emit genuine activity event if applicable
+    if (eventTypeToEmit) {
+      await this.eventRepo.create(
+        {
+          userId,
+          topicId: validated.topicId,
+          subjectId: validated.subjectId,
+          eventType: eventTypeToEmit,
+          occurredAt: now,
+        },
+        session
+      );
+    }
+
+    return {
+      topicId: validated.topicId,
+      status: responseDoc.status,
+      lastProgressUpdatedAt: responseDoc.lastProgressUpdatedAt,
+    };
+  }
+
+  /**
    * PUT /api/v1/progress/topics/:topicId
-   * Implements strict state-transition semantics.
+   * Implements strict state-transition semantics with dual-strategy transactional & compensation consistency.
    */
   public async updateTopicProgress(
     topicId: string,
@@ -239,9 +352,86 @@ export class ProgressService {
       };
     }
 
+    // Determine if a genuine learning event should be emitted according to exact transition matrix
+    let eventTypeToEmit: ActivityEventType | null = null;
+    if (currentStatus === 'NOT_STARTED') {
+      if (requestedStatus === 'IN_PROGRESS') {
+        eventTypeToEmit = 'TOPIC_STARTED';
+      } else if (requestedStatus === 'COMPLETED') {
+        eventTypeToEmit = 'TOPIC_COMPLETED';
+      }
+    } else if (currentStatus === 'IN_PROGRESS') {
+      if (requestedStatus === 'COMPLETED') {
+        eventTypeToEmit = 'TOPIC_COMPLETED';
+      }
+    } else if (currentStatus === 'COMPLETED') {
+      if (requestedStatus === 'IN_PROGRESS') {
+        eventTypeToEmit = 'TOPIC_RESUMED';
+      }
+    }
+
     const now = new Date();
 
-    // Transition to NOT_STARTED → delete document
+    // Attempt Strategy 1: Transaction via withTransaction (if database connection is active)
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        return await withTransaction(async (session) => {
+          return await this.executeProgressUpdateInternal(
+            userId,
+            validated,
+            existing,
+            requestedStatus,
+            eventTypeToEmit,
+            now,
+            session
+          );
+        });
+      } catch (transactionError: any) {
+        // If transactions are supported in replica set environment, a real error rolled back the transaction.
+        // Re-throw transaction error if it is NOT a standalone/unsupported transaction error.
+        const errMsg = transactionError?.message || '';
+        const isTransactionNotSupported =
+          errMsg.includes('Transaction numbers are only allowed') ||
+          errMsg.includes('standalone mongod');
+
+        if (!isTransactionNotSupported) {
+          throw transactionError;
+        }
+      }
+    }
+
+    // Strategy 2 Fallback: Sequential Execution with Compensation Rollback
+    return await this.executeSequentialWithCompensation(
+      userId,
+      validated,
+      existing,
+      currentStatus,
+      requestedStatus,
+      eventTypeToEmit,
+      now
+    );
+  }
+
+  /**
+   * Strategy 2: Non-transaction sequential execution with compensation rollback safety.
+   */
+  private async executeSequentialWithCompensation(
+    userId: string,
+    validated: { topicId: string; subjectId: string },
+    existing: any,
+    currentStatus: EffectiveProgressStatus,
+    requestedStatus: EffectiveProgressStatus,
+    eventTypeToEmit: ActivityEventType | null,
+    now: Date
+  ): Promise<ITopicProgressResponse> {
+    const originalStatus = currentStatus;
+    const originalTimestamp = existing ? existing.lastProgressUpdatedAt : null;
+
+    let progressMutated = false;
+    let isCreatedNew = false;
+    let responseDoc: { status: EffectiveProgressStatus; lastProgressUpdatedAt: string | null };
+
+    // Step 1: Perform progress mutation
     if (requestedStatus === 'NOT_STARTED') {
       if (existing) {
         await this.progressRepo.deleteOne(userId, validated.topicId);
@@ -253,7 +443,6 @@ export class ProgressService {
       };
     }
 
-    // Transition from NOT_STARTED → create document
     if (!existing) {
       const created = await this.progressRepo.create({
         userId,
@@ -262,29 +451,77 @@ export class ProgressService {
         status: requestedStatus as TopicProgressStatus,
         lastProgressUpdatedAt: now,
       });
-      return {
-        topicId: validated.topicId,
+      progressMutated = true;
+      isCreatedNew = true;
+      responseDoc = {
         status: created.status,
         lastProgressUpdatedAt: created.lastProgressUpdatedAt.toISOString(),
       };
+    } else {
+      const updated = await this.progressRepo.updateStatus(
+        userId,
+        validated.topicId,
+        requestedStatus as TopicProgressStatus,
+        now
+      );
+
+      if (!updated) {
+        throw new AppError('Failed to update progress.', 500, 'UPDATE_FAILED');
+      }
+      progressMutated = true;
+      responseDoc = {
+        status: updated.status,
+        lastProgressUpdatedAt: updated.lastProgressUpdatedAt.toISOString(),
+      };
     }
 
-    // Transition between IN_PROGRESS ↔ COMPLETED → update document
-    const updated = await this.progressRepo.updateStatus(
-      userId,
-      validated.topicId,
-      requestedStatus as TopicProgressStatus,
-      now
-    );
+    // Step 2: Perform event creation (if required)
+    if (eventTypeToEmit) {
+      try {
+        await this.eventRepo.create({
+          userId,
+          topicId: validated.topicId,
+          subjectId: validated.subjectId,
+          eventType: eventTypeToEmit,
+          occurredAt: now,
+        });
+      } catch (eventError: any) {
+        // Event creation failed -> trigger compensation rollback
+        if (progressMutated) {
+          try {
+            if (isCreatedNew) {
+              // Rollback creation: delete the newly created record
+              await this.progressRepo.deleteOne(userId, validated.topicId);
+            } else if (originalStatus !== 'NOT_STARTED' && originalTimestamp) {
+              // Rollback update: restore original status and original timestamp
+              await this.progressRepo.updateStatus(
+                userId,
+                validated.topicId,
+                originalStatus as TopicProgressStatus,
+                originalTimestamp
+              );
+            }
+          } catch (compensationError: any) {
+            logger.error(
+              `[CRITICAL_CONSISTENCY_FAILURE] Failed to roll back progress mutation after event creation failure. UserId: ${userId}, TopicId: ${validated.topicId}`,
+              { eventError, compensationError }
+            );
+          }
+        }
 
-    if (!updated) {
-      throw new AppError('Failed to update progress.', 500, 'UPDATE_FAILED');
+        // Always rethrow so API NEVER returns success when event write fails
+        throw new AppError(
+          `Failed to record activity event: ${eventError?.message || 'Event persistence failed'}`,
+          500,
+          'EVENT_PERSISTENCE_FAILED'
+        );
+      }
     }
 
     return {
       topicId: validated.topicId,
-      status: updated.status,
-      lastProgressUpdatedAt: updated.lastProgressUpdatedAt.toISOString(),
+      status: responseDoc.status,
+      lastProgressUpdatedAt: responseDoc.lastProgressUpdatedAt,
     };
   }
 
@@ -438,6 +675,100 @@ export class ProgressService {
   ): Promise<IProgressSummary> {
     const analytics = await this.getProgressAnalytics(userId, userContext);
     return analytics.overall;
+  }
+
+  /**
+   * GET /api/v1/progress/activity
+   * Computes learning streak metrics and retrieves recent historical learning events.
+   */
+  public async getLearningActivity(
+    userId: string,
+    userContext: IUserContext
+  ): Promise<ILearningActivityResponse> {
+    const targetExam = userContext.targetExam;
+    if (!targetExam) {
+      throw new AppError(
+        'Target exam context is required for activity metrics.',
+        400,
+        'MISSING_TARGET_EXAM'
+      );
+    }
+
+    const [recentDocs, distinctUtcDates, totalEventsCount] = await Promise.all([
+      this.eventRepo.findRecentByUserId(userId, 10),
+      this.eventRepo.findDistinctUtcActivityDatesByUserId(userId),
+      this.eventRepo.countByUserId(userId),
+    ]);
+
+    const totalActiveDays = distinctUtcDates.length;
+    const currentStreak = this.calculateCurrentStreak(distinctUtcDates);
+
+    const recentActivity: ILearningActivityItem[] = recentDocs.map((doc: any) => {
+      const topicObj = doc.topicId && typeof doc.topicId === 'object' ? doc.topicId : null;
+      const subjectObj = doc.subjectId && typeof doc.subjectId === 'object' ? doc.subjectId : null;
+
+      return {
+        eventId: doc._id.toString(),
+        topicId: topicObj ? topicObj._id.toString() : doc.topicId ? doc.topicId.toString() : '',
+        topicTitle: topicObj ? topicObj.title : 'Topic',
+        topicNumber: topicObj ? topicObj.topicNumber : 0,
+        subjectId: subjectObj ? subjectObj._id.toString() : doc.subjectId ? doc.subjectId.toString() : '',
+        subjectName: subjectObj ? subjectObj.name : 'Subject',
+        subjectCode: subjectObj ? subjectObj.code : 'SUB',
+        eventType: doc.eventType,
+        occurredAt: doc.occurredAt.toISOString(),
+      };
+    });
+
+    return {
+      metrics: {
+        currentStreak,
+        totalActiveDays,
+        totalActivityEvents: totalEventsCount,
+      },
+      recentActivity,
+    };
+  }
+
+  /**
+   * Private helper to calculate current consecutive daily learning streak in UTC.
+   */
+  private calculateCurrentStreak(distinctUtcDates: string[]): number {
+    if (!distinctUtcDates || distinctUtcDates.length === 0) {
+      return 0;
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    const dateSet = new Set(distinctUtcDates);
+
+    let anchorDate: Date | null = null;
+    if (dateSet.has(todayStr)) {
+      anchorDate = new Date(todayStr + 'T00:00:00.000Z');
+    } else if (dateSet.has(yesterdayStr)) {
+      anchorDate = new Date(yesterdayStr + 'T00:00:00.000Z');
+    } else {
+      return 0; // Streak broken
+    }
+
+    let streak = 0;
+    let checkDate: Date | null = anchorDate;
+
+    while (checkDate) {
+      const checkStr = checkDate.toISOString().split('T')[0];
+      if (dateSet.has(checkStr)) {
+        streak++;
+        checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
+      } else {
+        break;
+      }
+    }
+
+    return streak;
   }
 }
 

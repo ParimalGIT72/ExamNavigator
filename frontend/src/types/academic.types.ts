@@ -167,3 +167,28 @@ export interface IProgressAnalyticsResponse {
   overall: IProgressSummary;
   bySubject: ISubjectProgressAnalytics[];
 }
+
+export type ActivityEventType = 'TOPIC_STARTED' | 'TOPIC_COMPLETED' | 'TOPIC_RESUMED';
+
+export interface ILearningActivityMetrics {
+  currentStreak: number;
+  totalActiveDays: number;
+  totalActivityEvents: number;
+}
+
+export interface ILearningActivityItem {
+  eventId: string;
+  topicId: string;
+  topicTitle: string;
+  topicNumber: number;
+  subjectId: string;
+  subjectName: string;
+  subjectCode: string;
+  eventType: ActivityEventType;
+  occurredAt: string;
+}
+
+export interface ILearningActivityResponse {
+  metrics: ILearningActivityMetrics;
+  recentActivity: ILearningActivityItem[];
+}

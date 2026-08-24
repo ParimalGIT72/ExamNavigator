@@ -6,6 +6,7 @@ describe('Phase 8A — ProgressService Unit Tests', () => {
   let mockSubjectRepo: any;
   let mockChapterRepo: any;
   let mockTopicRepo: any;
+  let mockEventRepo: any;
   let progressService: ProgressService;
 
   const userId = new mongoose.Types.ObjectId().toString();
@@ -70,11 +71,19 @@ describe('Phase 8A — ProgressService Unit Tests', () => {
       findById: jest.fn(),
     };
 
+    mockEventRepo = {
+      create: jest.fn().mockResolvedValue({}),
+      findRecentByUserId: jest.fn().mockResolvedValue([]),
+      findDistinctUtcActivityDatesByUserId: jest.fn().mockResolvedValue([]),
+      countByUserId: jest.fn().mockResolvedValue(0),
+    };
+
     progressService = new ProgressService(
       mockProgressRepo,
       mockSubjectRepo,
       mockChapterRepo,
-      mockTopicRepo
+      mockTopicRepo,
+      mockEventRepo
     );
   });
 

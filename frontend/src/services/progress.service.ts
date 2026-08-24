@@ -4,6 +4,7 @@ import {
   ITopicProgressResponse,
   IProgressSummary,
   IProgressAnalyticsResponse,
+  ILearningActivityResponse,
   EffectiveProgressStatus,
 } from '@/types';
 
@@ -25,5 +26,9 @@ export class ProgressService {
 
   public static async getProgressAnalytics(): Promise<IApiResponse<IProgressAnalyticsResponse>> {
     return ApiClient.get<IProgressAnalyticsResponse>('/progress/analytics');
+  }
+
+  public static async getLearningActivity(): Promise<IApiResponse<ILearningActivityResponse>> {
+    return ApiClient.get<ILearningActivityResponse>('/progress/activity');
   }
 }
